@@ -91,14 +91,22 @@ def load(path, source=None, default_scope=None) -> Doc:
                default_scope=scope, pretagged="scope" in meta, chunks=split(text))
 
 def _headings_from_plain(text: str) -> str:
-    """Word text has no Markdown. Treat a short line with no closing punctuation, followed by a
-    paragraph, as a section heading, so a Word document splits (and is scope-tagged) by section."""
+    """Plain text from Word or RTF has no Markdown. Treat a short line with no closing punctuation,
+    followed by body text, as a section heading, so the document splits (and is scope-tagged) by
+    section. The body may follow after a blank line or on the very next line."""
+    def looks_like_heading(line: str) -> bool:
+        return 0 < len(line) <= 70 and not line.endswith((".", ":", ";", ",", "?", "!"))
     paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
-    out = []
+    out, first = [], True
     for i, p in enumerate(paras):
-        is_heading = (len(p) <= 70 and "\n" not in p and not p.endswith((".", ":", ";", ",", "?", "!"))
-                      and i + 1 < len(paras))
-        out.append(("# " if i == 0 else "## ") + p if is_heading else p)
+        head, _, rest = p.partition("\n")
+        if rest.strip() and looks_like_heading(head.strip()):            # heading with its body right under it
+            out.append(("# " if first else "## ") + head.strip()); out.append(rest.strip())
+        elif "\n" not in p and looks_like_heading(p) and i + 1 < len(paras):
+            out.append(("# " if first else "## ") + p)
+        else:
+            out.append(p)
+        first = False
     return "\n\n".join(out)
 
 def split(text: str) -> list:

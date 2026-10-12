@@ -38,7 +38,7 @@ class TestRtfExtraction(unittest.TestCase):
     
     def test_special_chars(self):
         """RTF special characters map to Unicode equivalents."""
-        path = self._make_rtf(r'Em\emdash dash\endash bullet\bullet tab\tab line\line')
+        path = self._make_rtf(r'Em\emdash dash\endash bullet\bullet tab\tab line\line next')   # text after \line: extract_text strips trailing whitespace
         try:
             text = extract_text(path)
             self.assertIn('\u2014', text)  # em dash
