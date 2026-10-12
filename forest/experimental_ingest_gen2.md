@@ -1,37 +1,21 @@
-# EXPERIMENTAL Ingest (gen 2)
+# Experimental Ingest (Gen 2)
 
-## Capabilities
-All CLASSIC capabilities, plus:
-- Ingest .docx files (Word 2007+ Open XML format)
-- Extract plain text from .docx: body, headers, footers
-- Map Word XML elements: `<w:t>` → text, `<w:tab/>` → `\t`, `<w:br/>` → `\n`, `<w:p>` → `\n\n`
-- Title from filename stem (titlecased, hyphens/underscores → spaces) for .docx
-- No frontmatter support for .docx (requires `--source` and `--default-scope`)
+## Capabilities (extends Gen 1)
 
-## Behaviour Changes
-- Extensions: `.md`, `.txt`, `.docx`
-- Directories: recursively glob `*.md`, `*.txt`, `*.docx`
-- .docx files:
-  - Unzipped in memory (stdlib zipfile)
-  - Parsed with xml.etree.ElementTree (no third-party deps)
-  - Text fed to existing chunk.split() pipeline
-  - Always marked pretagged=False (classifier runs unless scopes explicit in chunks)
-- .md/.txt behaviour unchanged (CLASSIC preserved)
+- Reads `.docx` files (Office Open XML): extracts text from headers, body, and footers
+- Reads `.rtf` files: converts RTF markup to plain text with charset handling
+- Both formats infer section structure via `_headings_from_plain()`: short lines without terminal punctuation become headings
+- Scope tagging works identically to `.md`/`.txt` (classifier runs, no frontmatter)
 
-## Evaluation Metrics
-- .docx files successfully ingested: count (target: >0 from samples/)
-- .docx extraction failures: count (target: 0 for valid files)
-- Chunks from .docx: mean per document
-- Text fidelity: manual spot-check that paragraphs, tabs, breaks preserved
-- Existing .md/.txt tests: all green (no regressions)
+## Behaviour changes from Classic
 
-## Integration Points
-- `ingest/chunk.py`: load() now branches on `.docx` suffix
-- `ingest/run.py`, `ingest/run_sf.py`: glob pattern includes `.docx`
-- `ingest/docx.py`: new module, extract_text() function
-- Tests: `ingest/test_docx.py` (unit), `ingest/test_chunk_docx.py` (integration)
+- `.docx` and `.rtf` require `--source` and `--default-scope` (no frontmatter support)
+- File type detection: suffix-based (`.docx`, `.rtf` in `READERS` set)
+- Title derived from filename stem (dashes/underscores → spaces → title case)
+- Binary formats handled via stdlib only (no new dependencies)
 
-## Risks
-- .doc (binary) files will fail with zipfile.BadZipFile (not supported, .docx only)
-- Malformed .docx (missing document.xml) raises KeyError (caught by ingest runner, prints FAIL)
-- Large .docx files load entirely into memory (acceptable for document ingest workload)
+## Evaluation
+
+- Target: RTF order forms from `inbox/` chunk and tag correctly (manual inspection)
+- Target: `.docx` and `.rtf` produce comparable chunk counts to equivalent `.md` (measured per document)
+- Regression: existing `.md`/`.txt` behaviour unchanged (asserted by `test_chunk_docx.py` staying green)

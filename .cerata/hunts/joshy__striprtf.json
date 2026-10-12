@@ -1,0 +1,37 @@
+{
+  "url": "https://github.com/joshy/striprtf.git",
+  "commit": "4f856ae78d1911fd395601891a729da0a6996ba1",
+  "timestamp": "2026-10-12T21:12:33+00:00",
+  "coherence": {
+    "psi": 1.0,
+    "rho": 0.75,
+    "q": 0.5,
+    "f": 0.95,
+    "coherence": 3.249
+  },
+  "viability": {
+    "viability": "PRIME_PREY",
+    "recommendation": "Immediate hunt authorized. High coherence, clean architecture.",
+    "proceed": true,
+    "warnings": []
+  },
+  "license": {
+    "spdx": "BSD-3-Clause",
+    "file": "LICENSE",
+    "consumable": true,
+    "note": "BSD-3-Clause: permissive, safe to consume with attribution"
+  },
+  "signals": {
+    "stars": 118,
+    "forks": 33,
+    "open_issues": 8,
+    "archived": false,
+    "days_since_push": 56,
+    "api_license": "BSD-3-Clause",
+    "description": "Stripping rtf to plain old text",
+    "default_branch": "master"
+  },
+  "consumed": [
+    "striprtf/striprtf.py"
+  ]
+}

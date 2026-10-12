@@ -1,26 +1,22 @@
-# CLASSIC Ingest (gen 1)
+# Classic Ingest (Gen 1)
 
 ## Capabilities
-- Ingest .md and .txt files from disk
-- Parse YAML frontmatter for title, source, scope metadata
-- Chunk on Markdown headings, split long sections on paragraphs (MAX_WORDS=300)
-- Scope markers: `<!-- scope: <name> -->` under headings
-- Classify untagged documents with LLM if no frontmatter scope
-- Summarize per scope, generate digests per topic+scope
-- Embed chunks, summaries, digests (Voyage, OpenAI, or local fallback)
-- Store to Postgres or Snowflake
-- Parallel processing (8 workers default)
+
+- Reads `.md` and `.txt` files with optional YAML frontmatter
+- Chunks on Markdown headings (max 300 words per chunk)
+- Supports explicit scope markers: `<!-- scope: <scope> -->`
+- Auto-tags chunks without explicit scope via LLM classifier
+- Generates summaries and digests per document
+- Computes embeddings for vector retrieval (Voyage, OpenAI, or lexical fallback)
 
 ## Behaviour
-- Extensions: `.md`, `.txt` only
-- Directories: recursively glob `*.md` and `*.txt`
-- Frontmatter required for source/scope unless `--source` and `--default-scope` provided
-- Re-ingesting same (source, title) replaces document atomically
-- One failed file does not halt batch (prints FAIL, continues)
+
+- Frontmatter `scope:` field pre-tags entire document (skips classifier)
+- Heading hierarchy becomes chunk breadcrumb trail: `[Section > Subsection]`
+- Long sections split on paragraph boundaries
+- Upload-only: no crawlers, no network calls during chunk processing
 
 ## Evaluation
-- Files ingested: count
-- Chunks per document: mean, max
-- Scopes per document: set
-- Failures: count, reasons
-- Digests generated: count (topic, scope) pairs
+
+- Metrics: chunk count, scope distribution, embedding dimensions (measured)
+- Quality: manual review of chunking and scope assignment (no automated metric)

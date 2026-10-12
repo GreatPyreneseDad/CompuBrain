@@ -5,8 +5,8 @@ A section can carry its own scope with a marker line directly under its heading:
     <!-- scope: people -->
 The marker covers that section only. Everything else takes the document's default scope.
 
-EXPERIMENTAL: .docx files are supported. Text is extracted via ingest.docx.extract_text() and
-then processed like plain text.
+EXPERIMENTAL: .docx and .rtf files are supported. Text is extracted via ingest.docx.extract_text()
+or ingest.rtf.extract_text() and then processed like plain text.
 """
 from __future__ import annotations
 import re, pathlib
@@ -16,7 +16,7 @@ MAX_WORDS = 300
 
 # File types the brain can read. A new reader is registered here and routed in load().
 # Anything else raises UnsupportedFormat, which is how the brain learns it is missing a tool.
-READERS = {".md", ".txt", ".docx"}
+READERS = {".md", ".txt", ".docx", ".rtf"}
 
 class UnsupportedFormat(ValueError):
     pass
@@ -39,10 +39,10 @@ class Doc:
     chunks: list
 
 def load(path, source=None, default_scope=None) -> Doc:
-    """Load and chunk a document from .md, .txt, or .docx.
+    """Load and chunk a document from .md, .txt, .docx, or .rtf.
     
     CLASSIC: .md and .txt only
-    EXPERIMENTAL: also .docx (extracts text, no frontmatter support)
+    EXPERIMENTAL: also .docx and .rtf (extract text, no frontmatter support)
     """
     path = pathlib.Path(path)
     if path.suffix.lower() not in READERS:
@@ -62,11 +62,25 @@ def load(path, source=None, default_scope=None) -> Doc:
             chunks=split(text)
         )
     
+    # EXPERIMENTAL: handle .rtf
+    if path.suffix == '.rtf':
+        from ingest.rtf import extract_text
+        text = _headings_from_plain(extract_text(path))
+        if not source or not default_scope:
+            raise ValueError(f"{path.name}: .rtf files require --source and --default-scope")
+        return Doc(
+            title=path.stem.replace("-", " ").replace("_", " ").title(),
+            source=source,
+            default_scope=default_scope,
+            pretagged=False,
+            chunks=split(text)
+        )
+    
     # CLASSIC: .md and .txt with optional frontmatter
     text = path.read_text(encoding="utf-8", errors="replace")
     meta = {}
     if text.startswith("---"):
-        import yaml  # lazy import: not needed for .docx path
+        import yaml  # lazy import: not needed for .docx/.rtf path
         _, front, text = text.split("---", 2)
         meta = yaml.safe_load(front) or {}
     scope = meta.get("scope") or default_scope
@@ -77,14 +91,22 @@ def load(path, source=None, default_scope=None) -> Doc:
                default_scope=scope, pretagged="scope" in meta, chunks=split(text))
 
 def _headings_from_plain(text: str) -> str:
-    """Word text has no Markdown. Treat a short line with no closing punctuation, followed by a
-    paragraph, as a section heading, so a Word document splits (and is scope-tagged) by section."""
+    """Plain text from Word or RTF has no Markdown. Treat a short line with no closing punctuation,
+    followed by body text, as a section heading, so the document splits (and is scope-tagged) by
+    section. The body may follow after a blank line or on the very next line."""
+    def looks_like_heading(line: str) -> bool:
+        return 0 < len(line) <= 70 and not line.endswith((".", ":", ";", ",", "?", "!"))
     paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
-    out = []
+    out, first = [], True
     for i, p in enumerate(paras):
-        is_heading = (len(p) <= 70 and "\n" not in p and not p.endswith((".", ":", ";", ",", "?", "!"))
-                      and i + 1 < len(paras))
-        out.append(("# " if i == 0 else "## ") + p if is_heading else p)
+        head, _, rest = p.partition("\n")
+        if rest.strip() and looks_like_heading(head.strip()):            # heading with its body right under it
+            out.append(("# " if first else "## ") + head.strip()); out.append(rest.strip())
+        elif "\n" not in p and looks_like_heading(p) and i + 1 < len(paras):
+            out.append(("# " if first else "## ") + p)
+        else:
+            out.append(p)
+        first = False
     return "\n\n".join(out)
 
 def split(text: str) -> list:
