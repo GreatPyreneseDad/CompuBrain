@@ -2,6 +2,8 @@
 
   POST /ask      Authorization: Bearer <token>   {"question": "..."}
   GET  /ledger   Authorization: Bearer <admin token>
+  GET  /forecast Authorization: Bearer <token>   choke points over the work this asker may see
+  GET  /outbox   Authorization: Bearer <token>   unblock emails this asker may see
   GET  /         the asker-switcher page
 
 Ingest is a command, not a route:  python -m ingest.run_sf <path>
@@ -11,7 +13,7 @@ from typing import Optional
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from core import gate, ledger
+from core import gate, ledger, flow, identity
 from core.ask import ask
 
 ADMIN_TOKEN = os.environ.get("BRAIN_ADMIN_TOKEN", "demo-admin")
@@ -44,6 +46,20 @@ def ledger_route(authorization: Optional[str] = Header(None), limit: int = 30):
     if bearer(authorization) != ADMIN_TOKEN:
         raise HTTPException(403, "Admin token required")
     return ledger.read(min(limit, 200))
+
+def principal(authorization):
+    p = identity.resolve(bearer(authorization))
+    if p is None:
+        raise HTTPException(401, "Unknown token")
+    return p
+
+@app.get("/forecast")
+def forecast_route(authorization: Optional[str] = Header(None)):
+    return flow.forecast(principal(authorization))
+
+@app.get("/outbox")
+def outbox_route(authorization: Optional[str] = Header(None)):
+    return flow.outbox(principal(authorization))
 
 @app.get("/", response_class=HTMLResponse)
 def index():

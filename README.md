@@ -79,6 +79,27 @@ Untagged documents, such as a handout corpus, on either store:
 
     python -m ingest.run_sf handout/ --source handout --default-scope internal
 
+## Flow: unblock emails and the choke-point forecast
+
+Applied with `python -m sf.apply sf/02_flow.sql`.
+
+- **Tasks.** Every plan the intake agent makes is stored task by task: owning department, due date, and the
+  department it is waiting on, if any. `TASK` sits behind the same row access policy as knowledge.
+- **Unblock emails.** For each department a plan waits on, the brain writes one email saying what is needed and
+  by when, and stores it in `OUTBOX`. An email is written only from material the receiving department may see;
+  when the sender drew on scopes the recipient lacks, the email says a briefing is needed and the row records
+  which scopes were withheld. This filter runs in application code, not in a database policy, and the request
+  line itself is redacted by the model, so it is weaker than the answer gate.
+- **Sending.** With `AGENTMAIL_API_KEY` set, emails go from the brain's AgentMail inbox to a department's
+  AgentMail inbox. Departments without a real inbox stay `queued`. Nothing is sent to the fictional
+  `kestrelridge.example` addresses.
+- **Forecast.** `GET /forecast` reads the tasks the asker may see and counts, per department and week, its own
+  tasks plus the requests other departments have made of it, each deliverable once per (matter, department,
+  due date). It compares that with `DEPARTMENT.capacity_per_week`, which is an illustrative number, and a model
+  writes the choke points from the table. It is arithmetic over planned work, not a trained predictor.
+- `python -m core.intake --record-only "<document title>"` plans and stores tasks and emails without touching
+  any GitHub issue.
+
 ## How scope is set
 
 Every stored row, at all three grains, carries exactly one scope, and every read policy is the same

@@ -27,6 +27,7 @@ jobs:
     env:
       ANTHROPIC_API_KEY: ${{ secrets.CERATA_API_KEY }}
       SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      AGENTMAIL_API_KEY: ${{ secrets.AGENTMAIL_API_KEY }}    # optional: without it, unblock emails are queued, not sent
       GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4

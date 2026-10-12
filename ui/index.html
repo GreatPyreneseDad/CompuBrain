@@ -51,6 +51,26 @@
   ul.src { margin: 0; padding: 0; list-style: none; font-size: 13.5px; }
   ul.src li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
   .meta { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  section.flow { padding: 0 24px 24px; }
+  .flowbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0 10px; }
+  .flowbar button { padding: 5px 12px; font-size: 13px; }
+  .flowbar button.on { background: var(--accent); color: var(--panel); }
+  .headline { font-size: 16px; margin: 4px 0 12px; max-width: 900px; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; }
+  @media (max-width: 980px) { .grid2 { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  td.num { text-align: center; font-family: var(--mono); }
+  td.over { background: color-mix(in srgb, var(--deny) 22%, transparent); font-weight: 700; }
+  td.full { background: color-mix(in srgb, var(--warn) 20%, transparent); }
+  .st { font: 600 11px var(--mono); text-transform: uppercase; padding: 2px 7px; border-radius: 10px; background: var(--chip); align-self: flex-start; white-space: nowrap; }
+  .st.choke { color: var(--deny); } .st.tight { color: var(--warn); } .st.ok { color: var(--ok); }
+  .st.sent { color: var(--ok); } .st.queued { color: var(--muted); } .st.failed { color: var(--deny); }
+  .choke-item { border-left: 3px solid var(--deny); padding: 6px 10px; margin: 8px 0; background: var(--chip); font-size: 14px; }
+  .mail { border-bottom: 1px solid var(--line); padding: 8px 0; font-size: 13.5px; }
+  .mail:last-child { border-bottom: 0; }
+  .mail summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 10px; }
+  .mail pre { white-space: pre-wrap; font: 13px/1.5 var(--mono); background: var(--chip); padding: 10px; border-radius: 6px; margin: 8px 0 2px; }
+  .mail .to { color: var(--muted); font-size: 12px; }
   section.ledger { padding: 0 24px 40px; }
   .scroll { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
   table { border-collapse: collapse; width: 100%; font-size: 13px; }
@@ -75,6 +95,15 @@
   <button class="ghost" data-q="How do I set up single sign-on?">SSO setup</button>
 </div>
 <div class="cols" id="cols"></div>
+<section class="flow">
+  <h3>Flow: where work will jam, and the unblock requests the brain has sent</h3>
+  <div class="flowbar"><span class="meta" style="margin:0">View as</span><span id="flowwho"></span><span class="meta" id="flowmeta" style="margin:0"></span></div>
+  <div class="headline" id="headline">Pick an asker.</div>
+  <div class="grid2">
+    <div class="card"><div class="scroll" style="border:0"><table id="load"></table></div><div id="chokes"></div></div>
+    <div class="card"><h3 style="margin-top:0">Outbox</h3><div id="outbox"></div></div>
+  </div>
+</section>
 <section class="ledger">
   <h3>Ledger: who asked what, and what they saw</h3>
   <div class="scroll"><table id="ledger"><thead><tr>
@@ -152,6 +181,33 @@ go.onclick = askAll;
 q.addEventListener("keydown", e => { if (e.key === "Enter") askAll(); });
 document.querySelectorAll(".presets button").forEach(b => b.onclick = () => { q.value = b.dataset.q; askAll(); });
 loadLedger();
+
+async function loadFlow(a) {
+  document.querySelectorAll("#flowwho button").forEach(b => b.classList.toggle("on", b.dataset.h === a.handle));
+  const H = {headers: {"Authorization": "Bearer " + a.token}};
+  document.getElementById("headline").textContent = "Reading the work " + a.label + " may see…";
+  document.getElementById("load").innerHTML = ""; document.getElementById("chokes").innerHTML = ""; document.getElementById("outbox").innerHTML = "";
+  try {
+    const [f, box] = await Promise.all([fetch("/forecast", H).then(r => r.json()), fetch("/outbox", H).then(r => r.json())]);
+    document.getElementById("flowmeta").textContent = `${f.tasks_seen} planned tasks visible · scopes: ${f.scopes.join(", ")}`;
+    document.getElementById("headline").textContent = f.headline || (f.departments.length ? "" : "No planned work is visible to this asker.");
+    const wk = w => w.slice(5);
+    document.getElementById("load").innerHTML = f.departments.length ? `<thead><tr><th>Department</th><th>Cap/wk</th>` +
+      f.weeks.map(w => `<th>wk ${wk(w)}</th>`).join("") + `<th>Waiting on them</th></tr></thead><tbody>` +
+      f.departments.map(d => `<tr><td>${esc(d.name)} <span class="st ${d.status}">${d.status}</span></td><td class="num">${d.capacity}</td>` +
+        d.by_week.map(x => `<td class="num ${x.over ? "over" : x.tasks === d.capacity ? "full" : ""}">${x.tasks || ""}</td>`).join("") +
+        `<td class="num">${d.waiting_on_them || ""}</td></tr>`).join("") + `</tbody>` : "";
+    document.getElementById("chokes").innerHTML = (f.choke_points || []).map(c =>
+      `<div class="choke-item"><b>${esc(c.department)}, week of ${esc(c.week)}.</b> ${esc(c.why)}<br><i>Action:</i> ${esc(c.action)}</div>`).join("");
+    document.getElementById("outbox").innerHTML = box.length ? box.map(m => `<details class="mail"><summary>
+        <span><b>${esc(m.from)} → ${esc(m.to)}</b> · ${esc(m.subject)}<br><span class="to">${esc(m.to_email)}${m.needed_by && m.needed_by !== "None" ? " · needed by " + esc(m.needed_by) : ""}${m.withheld ? " · withheld from recipient: " + esc(m.withheld) : ""}</span></span>
+        <span class="st ${m.status}">${m.status}</span></summary><pre>${esc(m.body)}</pre></details>`).join("")
+      : `<div class="meta">No unblock requests visible to this asker.</div>`;
+  } catch (e) { document.getElementById("headline").textContent = "Could not load: " + e.message; }
+}
+document.getElementById("flowwho").innerHTML = ASKERS.map(a => `<button class="ghost" data-h="${a.handle}">${esc(a.label)}</button>`).join(" ");
+document.querySelectorAll("#flowwho button").forEach(b => b.onclick = () => loadFlow(ASKERS.find(a => a.handle === b.dataset.h)));
+loadFlow(ASKERS[1]);
 </script>
 </body>
 </html>

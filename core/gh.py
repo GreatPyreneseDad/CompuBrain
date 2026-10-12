@@ -9,6 +9,7 @@ class GitHub:
         self.token = token or os.environ.get("GITHUB_TOKEN", "")
         self.repo = repo or os.environ.get("GITHUB_REPOSITORY", "")
         self.dry_run = not (self.token and self.repo)
+        self.quiet = False
 
     def _call(self, method, path, body=None):
         req = urllib.request.Request(API + path, json.dumps(body).encode() if body is not None else None, method=method)
@@ -31,7 +32,8 @@ class GitHub:
 
     def open_issue(self, title: str, body: str, labels: list) -> str:
         if self.dry_run:
-            print(f"\n----- DRY RUN: would open issue -----\nTITLE: {title}\nLABELS: {', '.join(labels)}\n\n{body}\n")
+            if not self.quiet:
+                print(f"\n----- DRY RUN: would open issue -----\nTITLE: {title}\nLABELS: {', '.join(labels)}\n\n{body}\n")
             return "dry-run"
         existing = self.find_open_issue(title)
         if existing:                      # re-running intake on the same document must not duplicate
@@ -47,6 +49,7 @@ class GitHub:
 
     def comment(self, number: int, body: str) -> str:
         if self.dry_run:
-            print(f"\n----- DRY RUN: would comment on #{number} -----\n{body}\n")
+            if not self.quiet:
+                print(f"\n----- DRY RUN: would comment on #{number} -----\n{body}\n")
             return "dry-run"
         return self._call("POST", f"/repos/{self.repo}/issues/{number}/comments", {"body": body})["html_url"]

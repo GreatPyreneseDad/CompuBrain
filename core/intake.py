@@ -9,7 +9,7 @@ sources become their own issue. Every action is written to the ledger on the rol
 """
 from __future__ import annotations
 import sys, re
-from core import gate, identity, retrieve, render, ledger
+from core import gate, identity, retrieve, render, ledger, flow
 from core.gh import GitHub
 
 # The agent principals that act for each team. Tokens are demo values.
@@ -23,11 +23,17 @@ Decide what your team must now do because of this document. Use only the new doc
 - Every task must be concrete, owned by a role, and carry a due date worked out from dates in the document \
 and time limits in the sources (state the rule you applied).
 - Cite the source number for each task that comes from a company rule. Use 0 for the new document itself.
+- Give each task the department that must do it, and a due_date as YYYY-MM-DD whenever one can be worked out.
+- If a task cannot proceed until another department does or decides something, set blocked_by to that department \
+and put in "need" one sentence saying exactly what is needed from them, worded so it could be sent to them. \
+Otherwise set blocked_by to "none".
 - If sources disagree with each other or with the new document on a fact, do not pick one. List it in "conflicts".
 - If the new document requires nothing of your team, set "actionable" to false.
 
 Always finish by calling the record_plan tool exactly once. Do not answer in prose."""
 
+DEPTS = ["sales", "sales_ops", "support", "customer_success", "engineering", "product",
+         "finance", "legal", "leadership", "people"]
 _VALUE = {"type": "object", "properties": {"value": {"type": "string"}, "source": {"type": "integer"}},
           "required": ["value", "source"]}
 PLAN_TOOL = {
@@ -40,9 +46,14 @@ PLAN_TOOL = {
             "subject": {"type": "string", "description": "the customer or matter, two to four words"},
             "title": {"type": "string", "description": "issue title, under 70 characters, starting with a verb"},
             "summary": {"type": "string", "description": "two sentences: what arrived and why it matters to this team"},
-            "tasks": {"type": "array", "maxItems": 7, "items": {"type": "object", "required": ["task", "owner", "due", "source"],
+            "tasks": {"type": "array", "maxItems": 7, "items": {"type": "object",
+                "required": ["task", "owner", "department", "due", "due_date", "blocked_by", "source"],
                 "properties": {"task": {"type": "string", "description": "one or two sentences"},
-                               "owner": {"type": "string"}, "due": {"type": "string"}, "source": {"type": "integer"}}}},
+                               "owner": {"type": "string"}, "department": {"type": "string", "enum": DEPTS},
+                               "due": {"type": "string"},
+                               "due_date": {"type": "string", "description": "YYYY-MM-DD, or empty if unknown"},
+                               "blocked_by": {"type": "string", "enum": DEPTS + ["none"]},
+                               "need": {"type": "string"}, "source": {"type": "integer"}}}},
             "watch": {"type": "array", "maxItems": 4, "items": {"type": "string"}},
             "conflicts": {"type": "array", "items": {"type": "object", "required": ["fact", "values"],
                 "properties": {"fact": {"type": "string", "description": "the disputed fact, under 60 characters"},
@@ -50,7 +61,7 @@ PLAN_TOOL = {
 
 def new_doc_chunks(role: str, title: str) -> list:
     """The part of the new document this role can read. Runs on the role's own session."""
-    return gate.query(role, """select c.id, c.document_id, c.content from chunk c
+    return gate.query(role, """select c.id, c.document_id, c.content, c.scope from chunk c
         join visible_document d on d.id = c.document_id where d.title = %s order by c.ord""", (title,))
 
 def plan(principal, title: str, team: str):
@@ -81,7 +92,8 @@ def issue_body(p, out, hits, title) -> str:
     lines = [out.get("summary", ""), "", "### Tasks"]
     for t in out.get("tasks", []):
         ref = src(t.get("source"))
-        lines.append(f"- [ ] **{t['task']}** · {t.get('owner', '')} · due {t.get('due', '')}" + (f" · _{ref}_" if ref else ""))
+        wait = f" · ⏳ waiting on **{t['blocked_by'].replace('_', ' ')}**" if t.get("blocked_by") not in (None, "", "none") else ""
+        lines.append(f"- [ ] **{t['task']}** · {t.get('owner', '')} · due {t.get('due', '')}{wait}" + (f" · _{ref}_" if ref else ""))
     if out.get("watch"):
         lines += ["", "### Watch"] + [f"- {w}" for w in out["watch"]]
     for c in out.get("conflicts", []):
@@ -124,8 +136,11 @@ def same_conflict(fact: str, existing: list):
         return None
     return next((e for e in existing if e[0] == n), None)
 
-def run(title: str) -> list:
+def run(title: str, record_only: bool = False) -> list:
+    """record_only: plan and store tasks and emails without opening or touching any issue."""
     gh, opened = GitHub(), []
+    if record_only:
+        gh.dry_run, gh.quiet = True, True
     for token, team in AGENTS:
         p = identity.resolve(token)
         try:
@@ -144,6 +159,19 @@ def run(title: str) -> list:
                  if isinstance(t.get("source"), int) and 1 <= t["source"] <= len(hits)]
         ledger.write(p, f"intake: {title}", "action", [], cited, f"opened issue: {out['title']} {url}", *out["tokens"])
         opened.append(url); print(f"{p.handle}: opened {url}")
+        try:                                           # flow is additive: never let it break intake
+            sent = flow.store(p, title, out, hits, mine, "" if url == "dry-run" else url)
+            if sent:
+                note = "\n".join(f"- **{d['to']}** ({d['email']}): {d['subject']}" + (f" · needed by {d['needed_by']}" if d['needed_by'] else "")
+                                 + (f" · withheld from them: `{', '.join(d['withheld'])}`" if d['withheld'] else "") + f" · _{d['status']}_"
+                                 for d in sent)
+                number = url.rstrip("/").split("/")[-1]
+                if number.isdigit():
+                    gh.comment(int(number), "**Unblock requests dispatched by the brain**\n\n" + note +
+                               "\n\n<sub>Each email is written only from what the receiving department may see.</sub>")
+                print(f"{p.handle}: dispatched {len(sent)} unblock request(s): " + ", ".join(d["to"] for d in sent))
+        except Exception as e:
+            print(f"{p.handle}: flow not recorded: {e}")
         for c in out.get("conflicts", []):
             if len({v["value"] for v in c.get("values", [])}) < 2:
                 continue
@@ -166,6 +194,7 @@ def title_of(arg: str) -> str:
     return arg
 
 if __name__ == "__main__":
-    for arg in sys.argv[1:]:
+    record_only = "--record-only" in sys.argv
+    for arg in [a for a in sys.argv[1:] if not a.startswith("--")]:
         print(f"== {title_of(arg)}")
-        run(title_of(arg))
+        run(title_of(arg), record_only)
