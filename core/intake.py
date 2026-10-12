@@ -107,6 +107,23 @@ def conflict_body(p, c, hits, title) -> str:
             f"---\nFound by `{p.handle}` (Snowflake role `{p.sf_role}`). Only roles holding the scopes of these "
             f"documents can see this disagreement at all.")
 
+MATCH = """You match a newly found disagreement between company documents against disagreements already on \
+file. Two are the same when they are about the same underlying fact in the same documents (for example, how \
+long the refund window is), even if one mentions a particular customer and the other does not. Return \
+{"match": <number of the existing one>} or {"match": null}."""
+
+def same_conflict(fact: str, existing: list):
+    """The already-open conflict issue this one repeats, or None."""
+    if not existing:
+        return None
+    from ingest.llm import ask_json
+    listing = "\n".join(f"{n}: {t}" for n, t, _ in existing)
+    try:
+        n = ask_json(MATCH, f"New: {fact}\n\nOn file:\n{listing}", max_tokens=100).get("match")
+    except Exception:
+        return None
+    return next((e for e in existing if e[0] == n), None)
+
 def run(title: str) -> list:
     gh, opened = GitHub(), []
     for token, team in AGENTS:
@@ -130,6 +147,12 @@ def run(title: str) -> list:
         for c in out.get("conflicts", []):
             if len({v["value"] for v in c.get("values", [])}) < 2:
                 continue
+            known = same_conflict(c["fact"], gh.open_conflicts())
+            if known:                     # one issue per disagreement: add the sighting, do not reopen it
+                curl = gh.comment(known[0], f"Seen again while handling **{title}**, by `{p.handle}` "
+                                            f"(Snowflake role `{p.sf_role}`): {c['fact']}.")
+                ledger.write(p, f"intake: {title}", "action", [], [], f"noted on conflict issue #{known[0]}: {c['fact']}")
+                print(f"{p.handle}: noted on existing conflict #{known[0]}"); continue
             curl = gh.open_issue(f"Sources disagree: {c['fact']}"[:120], conflict_body(p, c, hits, title), ["brain", "conflict"])
             ledger.write(p, f"intake: {title}", "action", [], [], f"opened conflict issue: {c['fact']} {curl}")
             opened.append(curl); print(f"{p.handle}: opened conflict {curl}")

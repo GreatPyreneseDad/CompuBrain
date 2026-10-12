@@ -38,6 +38,13 @@ class GitHub:
             return existing["html_url"]
         return self._call("POST", f"/repos/{self.repo}/issues", {"title": title, "body": body, "labels": labels})["html_url"]
 
+    def open_conflicts(self) -> list:
+        """Open issues labelled conflict, as (number, title, url)."""
+        if self.dry_run:
+            return []
+        issues = self._call("GET", f"/repos/{self.repo}/issues?state=open&labels=conflict&per_page=100")
+        return [(i["number"], i["title"], i["html_url"]) for i in issues if "pull_request" not in i]
+
     def comment(self, number: int, body: str) -> str:
         if self.dry_run:
             print(f"\n----- DRY RUN: would comment on #{number} -----\n{body}\n")

@@ -27,20 +27,28 @@ Scope is data, set once at ingest, not a line in a prompt."
 
 ## Beat 5: the brain acts (GitHub)
 
-The repo is the brain's action surface. Three workflows:
+Open github.com/GreatPyreneseDad/CompuBrain.
 
-- **Intake.** Copy `samples/halcyon-freight-order-form.md` (a new client contract) into `inbox/` and commit. The Action ingests it into Snowflake, then opens one issue per team, each written
-  under that team's role. Sales gets the onboarding checklist with due dates. Support gets go-live
-  prep and never sees the deal value. Leadership gets the one that matters: this contract is on the
-  March 2026 template, so its refund window is 45 days, not the 30 the playbook says, and revenue
-  must stay deferred until 29 November. It also opens a "Sources disagree" issue.
-- **Ask.** Comment `/brain ask as:maya What are the comp bands for an L4 engineer?` on any issue.
-  The refusal comes back as a reply.
-- **CERATA.** Comment `/cerata hunt py-pdf/pypdf`. The brain evaluates a capability it lacks (PDF
-  ingest) before consuming it. `/cerata consume` turns it into a pull request.
+1. **Show PR #7.** "This morning the brain could not read a Word file. Someone commented
+   `/cerata consume` on an issue. CERATA checked the licence, digested the code, wrote and ran nine
+   tests, and opened this pull request. We reviewed it and merged."
+2. **Drop a Word contract.** In `inbox/`: Add file → Upload files → drag
+   `samples/ridgeback-cold-chain-order-form.docx` → Commit changes.
+3. **Actions tab.** "Brain intake" runs for about a minute and a half.
+4. **Issues tab.** One issue per team, each written under that team's role:
+   - Sales: onboarding tasks with due dates worked out from the contract.
+   - Leadership: what sales cannot see. The 22 percent discount is over the limit the regional
+     director can approve. The customer was promised 99.99 percent uptime in writing. And the refund
+     window on this contract is 45 days, not the playbook's 30.
+   - Support: nothing, because that role cannot see this document.
+   - A repeat disagreement is added as a comment on the existing "Sources disagree" issue, not reopened.
+5. **Ask in place.** On any issue: `/brain ask as:maya What are the comp bands for an L4 engineer?`
+   The refusal comes back as a reply.
 
 Say: "It doesn't just answer. New data arrives, and each team gets its work, scoped to what that
-team may know."
+team may know. And the people who hit the wall can extend it themselves."
+
+The model words things differently on each run. Do not promise a specific issue list.
 
 ## If asked
 
