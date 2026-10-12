@@ -5,6 +5,8 @@
   python -m ingest.run corpus/ --classify                       # force the classifier on tagged docs too
   python -m ingest.run --digests-only                           # rebuild T3 from stored summaries
 
+EXPERIMENTAL: .docx files are supported alongside .md and .txt.
+
 Connects with DATABASE_URL as the database owner. Ingest is the one writer and bypasses RLS on purpose.
 Re-ingesting a document (same source and title) replaces it.
 """
@@ -69,7 +71,7 @@ def rebuild_digests(conn, workers):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("paths", nargs="*", help="files or directories (.md, .txt)")
+    ap.add_argument("paths", nargs="*", help="files or directories (.md, .txt, .docx)")
     ap.add_argument("--source", help="source name for files without frontmatter")
     ap.add_argument("--default-scope", help="scope for files without frontmatter")
     ap.add_argument("--classify", action="store_true", help="run the scope classifier on pre-tagged documents too")
@@ -81,7 +83,8 @@ def main():
 
     files = []
     for p in map(pathlib.Path, args.paths):
-        files += sorted(f for f in p.rglob("*") if f.suffix in (".md", ".txt")) if p.is_dir() else [p]
+        # EXPERIMENTAL: include .docx
+        files += sorted(f for f in p.rglob("*") if f.suffix in (".md", ".txt", ".docx")) if p.is_dir() else [p]
 
     with psycopg.connect(DATABASE_URL) as conn:
         if not args.digests_only:

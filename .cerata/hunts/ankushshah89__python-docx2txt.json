@@ -1,0 +1,39 @@
+{
+  "url": "https://github.com/ankushshah89/python-docx2txt.git",
+  "commit": "0ae7fce1c208b23cd6dfcab2d7dfff15dddba439",
+  "timestamp": "2026-10-12T18:28:23+00:00",
+  "coherence": {
+    "psi": 0.75,
+    "rho": 0.3,
+    "q": 0.5,
+    "f": 0.7,
+    "coherence": 2.016
+  },
+  "viability": {
+    "viability": "VIABLE_PREY",
+    "recommendation": "Hunt with standard caution. Good integration potential.",
+    "proceed": true,
+    "warnings": [
+      "Low accumulated wisdom - untested patterns"
+    ]
+  },
+  "license": {
+    "spdx": "MIT",
+    "file": "LICENSE.txt",
+    "consumable": true,
+    "note": "MIT: permissive, safe to consume with attribution"
+  },
+  "signals": {
+    "stars": 583,
+    "forks": 109,
+    "open_issues": 31,
+    "archived": false,
+    "days_since_push": 566,
+    "api_license": "MIT",
+    "description": "A pure python based utility to extract text and images from docx files.",
+    "default_branch": "master"
+  },
+  "consumed": [
+    "docx2txt/docx2txt.py"
+  ]
+}
