@@ -42,7 +42,7 @@ def load(path, source=None, default_scope=None) -> Doc:
     # EXPERIMENTAL: handle .docx
     if path.suffix == '.docx':
         from ingest.docx import extract_text
-        text = extract_text(path)
+        text = _headings_from_plain(extract_text(path))
         if not source or not default_scope:
             raise ValueError(f"{path.name}: .docx files require --source and --default-scope")
         return Doc(
@@ -66,6 +66,17 @@ def load(path, source=None, default_scope=None) -> Doc:
     return Doc(title=str(meta.get("title") or path.stem.replace("-", " ").title()),
                source=str(meta.get("source") or source or "upload"),
                default_scope=scope, pretagged="scope" in meta, chunks=split(text))
+
+def _headings_from_plain(text: str) -> str:
+    """Word text has no Markdown. Treat a short line with no closing punctuation, followed by a
+    paragraph, as a section heading, so a Word document splits (and is scope-tagged) by section."""
+    paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    out = []
+    for i, p in enumerate(paras):
+        is_heading = (len(p) <= 70 and "\n" not in p and not p.endswith((".", ":", ";", ",", "?", "!"))
+                      and i + 1 < len(paras))
+        out.append(("# " if i == 0 else "## ") + p if is_heading else p)
+    return "\n\n".join(out)
 
 def split(text: str) -> list:
     sections, path, body = [], [], []          # path = heading trail, body = lines of current section
