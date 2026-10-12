@@ -22,3 +22,4 @@ Three things were promised and must be honoured: a custom detention-time dashboa
 
 New enterprise customer: Halcyon Freight Lines. Go-live target is 29 October 2026. Their workspace administrator is the Director of Fleet Systems. They require single sign-on through Okta before any user is invited. Data sources in scope: Samsara telematics, McLeod transportation management system, and a nightly fuel-card file. Expect about 45 users in the first month. They have asked for a named support contact during the first 60 days.
 
+

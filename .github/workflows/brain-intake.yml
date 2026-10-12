@@ -41,7 +41,7 @@ jobs:
         env:
           SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
         run: |
-          printf '%s\n' "$SNOWFLAKE_PRIVATE_KEY" > "$RUNNER_TEMP/brain_svc_key.p8"
+          python -m sf.keyfile "$RUNNER_TEMP/brain_svc_key.p8"
           echo "SNOWFLAKE_PRIVATE_KEY_FILE=$RUNNER_TEMP/brain_svc_key.p8" >> "$GITHUB_ENV"
       - name: Which documents
         id: docs
