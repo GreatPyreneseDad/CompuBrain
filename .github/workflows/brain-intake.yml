@@ -49,11 +49,11 @@ jobs:
           INPUT_PATH: ${{ github.event.inputs.path }}
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
-            files=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- inbox/ | grep -E '\.(md|txt)$' | tr '\n' ' ' || true)
+            files=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- inbox/ | grep -E '\.(md|txt)$' | grep -v 'README.md' | tr '\n' ' ' || true)
           elif [ -n "$INPUT_PATH" ]; then
             files="$INPUT_PATH"
           else
-            files=$(ls inbox/*.md inbox/*.txt 2>/dev/null | tr '\n' ' ')
+            files=$(ls inbox/*.md inbox/*.txt 2>/dev/null | grep -v 'README.md' | tr '\n' ' ')
           fi
           echo "files=$files" >> "$GITHUB_OUTPUT"; echo "Processing: $files"
       - name: Ingest under scope tags
