@@ -1,0 +1,5 @@
+brain_svc_key.p8
+brain.env
+.env
+.venv/
+__pycache__/

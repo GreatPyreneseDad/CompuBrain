@@ -1,0 +1,64 @@
+# New company data in, actions out.
+# Push a document into inbox/ and the brain ingests it into Snowflake, then opens one issue per
+# team, each written under that team's role, plus an issue for any disagreement between sources.
+name: Brain intake
+
+on:
+  push:
+    paths: ["inbox/**"]
+  workflow_dispatch:
+    inputs:
+      path:
+        description: "File under inbox/ to process (empty = everything in inbox/)"
+        required: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: brain-intake
+  cancel-in-progress: false
+
+jobs:
+  intake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.CERATA_API_KEY }}
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -q -r requirements.txt
+      - name: Snowflake key
+        env:
+          SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+        run: |
+          printf '%s\n' "$SNOWFLAKE_PRIVATE_KEY" > "$RUNNER_TEMP/brain_svc_key.p8"
+          echo "SNOWFLAKE_PRIVATE_KEY_FILE=$RUNNER_TEMP/brain_svc_key.p8" >> "$GITHUB_ENV"
+      - name: Which documents
+        id: docs
+        env:
+          INPUT_PATH: ${{ github.event.inputs.path }}
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            files=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- inbox/ | grep -E '\.(md|txt)$' | tr '\n' ' ' || true)
+          elif [ -n "$INPUT_PATH" ]; then
+            files="$INPUT_PATH"
+          else
+            files=$(ls inbox/*.md inbox/*.txt 2>/dev/null | tr '\n' ' ')
+          fi
+          echo "files=$files" >> "$GITHUB_OUTPUT"; echo "Processing: $files"
+      - name: Ingest under scope tags
+        if: steps.docs.outputs.files != ''
+        run: python -W ignore -m ingest.run_sf ${{ steps.docs.outputs.files }} --source inbox --default-scope internal
+      - name: Decide and act
+        if: steps.docs.outputs.files != ''
+        run: python -W ignore -m core.intake ${{ steps.docs.outputs.files }}

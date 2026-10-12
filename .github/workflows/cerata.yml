@@ -1,0 +1,36 @@
+# CERATA: the brain grows by predation. Comment on any issue:
+#   /cerata hunt owner/repo                      Rose Glass perception report + license check
+#   /cerata consume owner/repo -- only the X     metabolize into a reviewed pull request
+name: CERATA
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'e.g. "hunt py-pdf/pypdf" or "consume py-pdf/pypdf -- only text extraction"'
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: cerata-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  cerata:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.comment.body, '/cerata')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: GreatPyreneseDad/CERATA-Project@v1
+        with:
+          command: ${{ github.event.inputs.command }}
+          api-key: ${{ secrets.CERATA_API_KEY }}

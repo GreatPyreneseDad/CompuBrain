@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Company Brain</title>
+<style>
+  :root {
+    --bg: #f6f4ef; --panel: #ffffff; --ink: #1c1b19; --muted: #6b675f; --line: #e2ded4;
+    --accent: #1f4e79; --ok: #2f6b4f; --warn: #9a5b00; --deny: #9b2c2c; --chip: #efece4;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141413; --panel: #1d1c1a; --ink: #ece9e1; --muted: #9c978c; --line: #33312d;
+      --accent: #8db8e0; --ok: #7fc4a0; --warn: #e0a955; --deny: #e88b8b; --chip: #2a2825;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  header { padding: 22px 24px 8px; }
+  h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  .ask { display: flex; gap: 8px; padding: 12px 24px 4px; flex-wrap: wrap; }
+  .ask input { flex: 1 1 420px; padding: 11px 12px; font: inherit; color: var(--ink);
+               background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+  button { font: inherit; padding: 10px 16px; border-radius: 8px; border: 1px solid var(--accent);
+           background: var(--accent); color: var(--panel); cursor: pointer; }
+  button.ghost { background: transparent; color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  .presets { padding: 4px 24px 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .presets button { padding: 5px 10px; font-size: 13px; }
+  .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding: 0 24px 20px; }
+  @media (max-width: 980px) { .cols { grid-template-columns: 1fr; } }
+  .col { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-height: 220px; }
+  .who { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .who b { font-size: 16px; }
+  .who span { color: var(--muted); font-size: 13px; }
+  .chips { margin: 8px 0 10px; display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip { font: 12px var(--mono); background: var(--chip); padding: 2px 7px; border-radius: 10px; }
+  .chip.deny { color: var(--deny); text-decoration: line-through; }
+  .state { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; margin: 4px 0 6px; }
+  .answered { color: var(--ok); } .refused { color: var(--deny); } .empty, .waiting { color: var(--muted); }
+  .answer { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .answer.json { font: 12.5px/1.5 var(--mono); background: var(--chip); padding: 10px; border-radius: 6px; }
+  .answer sup { color: var(--accent); font-size: 11px; }
+  .conflict { margin-top: 10px; padding: 8px 10px; border-left: 3px solid var(--warn); background: var(--chip); font-size: 14px; }
+  .conflict b { color: var(--warn); }
+  h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 14px 0 4px; }
+  ul.src { margin: 0; padding: 0; list-style: none; font-size: 13.5px; }
+  ul.src li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+  .meta { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  section.ledger { padding: 0 24px 40px; }
+  .scroll { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+  td.q { min-width: 260px; } td.mono { font-family: var(--mono); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Company Brain</h1>
+  <p>One question, three askers. Identity decides what the model may see before it sees anything.</p>
+</header>
+<div class="ask">
+  <input id="q" aria-label="Question" value="What's our refund policy on enterprise contracts, and who approves exceptions?">
+  <button id="go">Ask all three</button>
+</div>
+<div class="presets">
+  <button class="ghost" data-q="What's our refund policy on enterprise contracts, and who approves exceptions?">Refund policy</button>
+  <button class="ghost" data-q="What are the comp bands for an L4 engineer?">Comp bands</button>
+  <button class="ghost" data-q="What refund exceptions did we grant last quarter?">Last quarter's exceptions</button>
+  <button class="ghost" data-q="How do I set up single sign-on?">SSO setup</button>
+</div>
+<div class="cols" id="cols"></div>
+<section class="ledger">
+  <h3>Ledger: who asked what, and what they saw</h3>
+  <div class="scroll"><table id="ledger"><thead><tr>
+    <th>When</th><th>Asker</th><th>Snowflake role</th><th>Question</th><th>Outcome</th><th>Scopes denied</th><th>Documents</th><th>Tokens</th>
+  </tr></thead><tbody></tbody></table></div>
+</section>
+<script>
+const ASKERS = [
+  {handle: "maya", label: "Maya", sub: "Sales, week 2", token: "demo-maya"},
+  {handle: "dana", label: "Dana", sub: "CFO", token: "demo-dana"},
+  {handle: "svc-support-bot", label: "svc-support-bot", sub: "Support agent (AI)", token: "demo-support-bot"},
+];
+const ALL = ["public", "internal", "sales", "support", "finance", "legal", "people", "exec"];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const cols = document.getElementById("cols");
+
+function shell(a) {
+  return `<div class="col" id="col-${a.handle}"><div class="who"><b>${esc(a.label)}</b><span>${esc(a.sub)}</span></div>
+    <div class="body"><div class="state waiting">Waiting for a question</div></div></div>`;
+}
+cols.innerHTML = ASKERS.map(shell).join("");
+
+function render(a, r) {
+  const held = new Set(r.scopes);
+  const chips = ALL.map(s => `<span class="chip ${held.has(s) ? "" : "deny"}">${s}</span>`).join("");
+  const isObj = typeof r.answer === "object";
+  const text = isObj ? esc(JSON.stringify(r.answer, null, 2))
+                     : esc(r.answer).replace(/\[(\d+)\]/g, "<sup>[$1]</sup>");
+  const conflicts = (r.conflicts || []).map(c => `<div class="conflict"><b>Sources disagree:</b> ${esc(c.fact)}<br>` +
+      [...new Set(c.values.map(v => v.value))].map(esc).join(" &nbsp;vs&nbsp; ") + `</div>`).join("");
+  const seen = new Set(), src = [];
+  for (const s of r.sources || []) { if (!seen.has(s.title)) { seen.add(s.title); src.push(s); } }
+  const sources = src.length ? `<h3>Sources</h3><ul class="src">` +
+      src.map(s => `<li><span>[${s.n}] ${esc(s.title)}</span><span class="chip">${s.scope}</span></li>`).join("") + `</ul>` : "";
+  const denied = r.denied_scopes && r.denied_scopes.length
+      ? `Related material exists in scopes this asker does not hold: ${r.denied_scopes.join(", ")}. The model never saw it.` : "";
+  document.querySelector(`#col-${a.handle} .body`).innerHTML =
+    `<div class="chips">${chips}</div><div class="state ${r.outcome}">${r.outcome}</div>
+     <div class="answer ${isObj ? "json" : ""}">${text}</div>${conflicts}${sources}
+     <div class="meta">${denied} ${r.seconds}s</div>`;
+}
+
+async function askOne(a, question) {
+  const body = document.querySelector(`#col-${a.handle} .body`);
+  body.innerHTML = `<div class="state waiting">Asking as ${esc(a.handle)}…</div>`;
+  try {
+    const res = await fetch("/ask", {method: "POST",
+      headers: {"Content-Type": "application/json", "Authorization": "Bearer " + a.token},
+      body: JSON.stringify({question})});
+    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+    render(a, await res.json());
+  } catch (e) { body.innerHTML = `<div class="state refused">Error</div><div class="answer">${esc(e.message)}</div>`; }
+}
+
+async function loadLedger() {
+  try {
+    const rows = await (await fetch("/ledger?limit=15", {headers: {"Authorization": "Bearer demo-admin"}})).json();
+    document.querySelector("#ledger tbody").innerHTML = rows.map(r => `<tr>
+      <td class="mono">${esc(r.at.slice(11, 19))}</td><td>${esc(r.asker || "")}</td><td class="mono">${esc(r.sf_role)}</td>
+      <td class="q">${esc(r.question)}</td><td class="${r.outcome}">${r.outcome}</td>
+      <td class="mono">${esc(r.denied_scopes || "")}</td>
+      <td>${r.document_ids ? r.document_ids.split(",").length : 0}</td>
+      <td class="mono">${r.tokens_in + r.tokens_out}</td></tr>`).join("");
+  } catch (e) {}
+}
+
+const go = document.getElementById("go"), q = document.getElementById("q");
+async function askAll() {
+  const question = q.value.trim(); if (!question) return;
+  go.disabled = true;
+  await Promise.all(ASKERS.map(a => askOne(a, question)));
+  go.disabled = false; loadLedger();
+}
+go.onclick = askAll;
+q.addEventListener("keydown", e => { if (e.key === "Enter") askAll(); });
+document.querySelectorAll(".presets button").forEach(b => b.onclick = () => { q.value = b.dataset.q; askAll(); });
+loadLedger();
+</script>
+</body>
+</html>

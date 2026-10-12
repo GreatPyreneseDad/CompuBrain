@@ -1,0 +1,6 @@
+anthropic>=1.0
+pyyaml>=6
+snowflake-connector-python>=3.12
+fastapi>=0.110
+uvicorn>=0.29
+psycopg[binary]>=3.2   # Postgres fallback only
