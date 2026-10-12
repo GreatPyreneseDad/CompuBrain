@@ -13,6 +13,13 @@ import re, pathlib
 from dataclasses import dataclass
 
 MAX_WORDS = 300
+
+# File types the brain can read. A new reader is registered here and routed in load().
+# Anything else raises UnsupportedFormat, which is how the brain learns it is missing a tool.
+READERS = {".md", ".txt", ".docx"}
+
+class UnsupportedFormat(ValueError):
+    pass
 MARKER = re.compile(r"^\s*<!--\s*scope:\s*([a-z]+)\s*-->\s*$", re.M)
 HEADING = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
 
@@ -38,7 +45,9 @@ def load(path, source=None, default_scope=None) -> Doc:
     EXPERIMENTAL: also .docx (extracts text, no frontmatter support)
     """
     path = pathlib.Path(path)
-    
+    if path.suffix.lower() not in READERS:
+        raise UnsupportedFormat(f"{path.name}: no reader for {path.suffix or 'this file type'}")
+
     # EXPERIMENTAL: handle .docx
     if path.suffix == '.docx':
         from ingest.docx import extract_text

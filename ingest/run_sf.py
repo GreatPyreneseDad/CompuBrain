@@ -12,7 +12,7 @@ see every scope. Re-ingesting a document (same source and title) replaces it.
 """
 from __future__ import annotations
 import os, argparse, pathlib, uuid, collections, concurrent.futures as cf
-from ingest import summarize, embed
+from ingest import summarize, embed, chunk
 from ingest.run import prepare
 from sf.conn import connect, EMBED
 
@@ -99,7 +99,7 @@ def main():
     files = []
     for p in map(pathlib.Path, args.paths):
         # EXPERIMENTAL: include .docx
-        files += sorted(f for f in p.rglob("*") if f.suffix in (".md", ".txt", ".docx")) if p.is_dir() else [p]
+        files += sorted(f for f in p.rglob("*") if f.suffix.lower() in chunk.READERS) if p.is_dir() else [p]
 
     with connect("BRAIN_OWNER") as conn:
         cur = conn.cursor()

@@ -1,0 +1,58 @@
+# The mail loop. Email sent to the company inbox becomes documents in inbox/, and the brain acts on them.
+# Runs on a timer and on demand (Actions tab -> Brain mail -> Run workflow).
+name: Brain mail
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write       # to commit the pulled mail into inbox/
+  issues: write
+  actions: write        # to start CERATA when an attachment needs a tool the brain lacks
+
+concurrency:
+  group: brain-intake   # shares the intake queue so two runs never plan the same document at once
+  cancel-in-progress: false
+
+jobs:
+  mail:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.CERATA_API_KEY }}
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      AGENTMAIL_API_KEY: ${{ secrets.AGENTMAIL_API_KEY }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - name: Skip quietly when no mail key is set
+        id: gate
+        run: |
+          if [ -z "$AGENTMAIL_API_KEY" ]; then echo "No AGENTMAIL_API_KEY secret; nothing to do."; echo "go=no" >> "$GITHUB_OUTPUT"; else echo "go=yes" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.go == 'yes'
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.go == 'yes'
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -q -r requirements.txt
+        if: steps.gate.outputs.go == 'yes'
+      - name: Snowflake key
+        if: steps.gate.outputs.go == 'yes'
+        env:
+          SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+        run: |
+          python -m sf.keyfile "$RUNNER_TEMP/brain_svc_key.p8"
+          echo "SNOWFLAKE_PRIVATE_KEY_FILE=$RUNNER_TEMP/brain_svc_key.p8" >> "$GITHUB_ENV"
+      - name: Pull new mail into inbox/ and act on it
+        if: steps.gate.outputs.go == 'yes'
+        run: python -W ignore -m core.mailroom
+      - name: Keep the mail in the repo
+        if: steps.gate.outputs.go == 'yes'
+        run: |
+          git config user.name "company-brain"
+          git config user.email "company-brain@users.noreply.github.com"
+          git add inbox/
+          git diff --cached --quiet || { git commit -q -m "Inbox: mail pulled from the company inbox"; git push; }

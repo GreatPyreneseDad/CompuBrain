@@ -1,20 +1,18 @@
 # New company data in, actions out.
-# Push a document into inbox/ and the brain ingests it into Snowflake, then opens one issue per
-# team, each written under that team's role, plus an issue for any disagreement between sources.
+# A push into inbox/ makes the brain ingest the new files into Snowflake and open one issue per team,
+# each written under that team's role. A file it cannot read raises a tooling request to CERATA.
+# A push that changes ingest/ (a new reader merged) sends it back for files that were waiting.
 name: Brain intake
 
 on:
   push:
-    paths: ["inbox/**"]
+    paths: ["inbox/**", "ingest/**"]
   workflow_dispatch:
-    inputs:
-      path:
-        description: "File under inbox/ to process (empty = everything in inbox/)"
-        required: false
 
 permissions:
   contents: read
   issues: write
+  actions: write        # to start CERATA when a tool is missing
 
 concurrency:
   group: brain-intake
@@ -23,7 +21,7 @@ concurrency:
 jobs:
   intake:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       ANTHROPIC_API_KEY: ${{ secrets.CERATA_API_KEY }}
       SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
@@ -44,22 +42,5 @@ jobs:
         run: |
           python -m sf.keyfile "$RUNNER_TEMP/brain_svc_key.p8"
           echo "SNOWFLAKE_PRIVATE_KEY_FILE=$RUNNER_TEMP/brain_svc_key.p8" >> "$GITHUB_ENV"
-      - name: Which documents
-        id: docs
-        env:
-          INPUT_PATH: ${{ github.event.inputs.path }}
-        run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            files=$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- inbox/ | grep -E '\.(md|txt|docx)$' | grep -v 'README.md' | tr '\n' ' ' || true)
-          elif [ -n "$INPUT_PATH" ]; then
-            files="$INPUT_PATH"
-          else
-            files=$(ls inbox/*.md inbox/*.txt inbox/*.docx 2>/dev/null | grep -v 'README.md' | tr '\n' ' ')
-          fi
-          echo "files=$files" >> "$GITHUB_OUTPUT"; echo "Processing: $files"
-      - name: Ingest under scope tags
-        if: steps.docs.outputs.files != ''
-        run: python -W ignore -m ingest.run_sf ${{ steps.docs.outputs.files }} --source inbox --default-scope internal
-      - name: Decide and act
-        if: steps.docs.outputs.files != ''
-        run: python -W ignore -m core.intake ${{ steps.docs.outputs.files }}
+      - name: Read what arrived, ask for tools for what cannot be read, go back for what was waiting
+        run: python -W ignore -m core.process --changed --catchup

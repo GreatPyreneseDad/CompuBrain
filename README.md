@@ -100,6 +100,19 @@ Applied with `python -m sf.apply sf/02_flow.sql`.
 - `python -m core.intake --record-only "<document title>"` plans and stores tasks and emails without touching
   any GitHub issue.
 
+## The mail loop and tool requests
+
+- **Mail in.** `.github/workflows/brain-mail.yml` polls the company inbox on AgentMail (every ten minutes, or
+  on demand from the Actions tab). Each new email becomes a Markdown document in `inbox/`; attachments are
+  saved beside it. The brain then plans the work exactly as for a file pushed by hand. Needs the
+  `AGENTMAIL_API_KEY` secret. Email is outside data: the planner is told not to follow instructions in it.
+- **A file it cannot read.** `ingest/chunk.py` lists the file types the brain has readers for. Anything else
+  makes `core/tooling.py` open a `[tooling]` issue, write the `/cerata consume` command, and start the CERATA
+  workflow with it. The candidate library comes from a short fixed list per file type.
+- **A person merges.** CERATA opens a pull request following `.cerata/guide.md`. Nothing merges itself.
+- **Going back.** A push that changes `ingest/` re-runs intake in catch-up mode: files in `inbox/` that are
+  readable now but were never ingested are processed, and the tooling issue is closed.
+
 ## How scope is set
 
 Every stored row, at all three grains, carries exactly one scope, and every read policy is the same

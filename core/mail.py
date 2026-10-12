@@ -18,7 +18,7 @@ def deliverable(to_email: str) -> bool:
 
 def send(to_email: str, subject: str, body: str, labels: list | None = None) -> str:
     """Returns the status to store: queued (not sent), sent, or failed."""
-    if not configured() or not deliverable(to_email):
+    if not configured() or not deliverable(to_email) or os.environ.get("BRAIN_NO_SEND") == "1":
         return "queued"
     payload = {"to": to_email, "subject": subject, "text": body, "labels": labels or ["company-brain"]}
     req = urllib.request.Request(f"{API}/inboxes/{urllib.request.quote(FROM)}/messages/send",

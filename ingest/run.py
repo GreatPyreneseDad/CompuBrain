@@ -84,7 +84,7 @@ def main():
     files = []
     for p in map(pathlib.Path, args.paths):
         # EXPERIMENTAL: include .docx
-        files += sorted(f for f in p.rglob("*") if f.suffix in (".md", ".txt", ".docx")) if p.is_dir() else [p]
+        files += sorted(f for f in p.rglob("*") if f.suffix.lower() in chunk.READERS) if p.is_dir() else [p]
 
     with psycopg.connect(DATABASE_URL) as conn:
         if not args.digests_only:
