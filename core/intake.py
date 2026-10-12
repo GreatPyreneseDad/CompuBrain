@@ -8,7 +8,7 @@ GitHub issue. A role that can see none of the document gets no issue. Disagreeme
 sources become their own issue. Every action is written to the ledger on the role's own session.
 """
 from __future__ import annotations
-import sys, re
+import sys, re, pathlib
 from core import gate, identity, retrieve, render, ledger, flow
 from core.gh import GitHub
 
@@ -190,8 +190,8 @@ def run(title: str, record_only: bool = False) -> list:
 
 def title_of(arg: str) -> str:
     """Accept a document title or the path of an ingested file."""
-    if arg.endswith((".md", ".txt", ".docx")):
-        from ingest import chunk
+    from ingest import chunk
+    if pathlib.Path(arg).suffix.lower() in chunk.READERS:          # any type the brain has a reader for
         return chunk.load(arg, "inbox", "internal").title
     return arg
 
