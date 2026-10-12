@@ -56,8 +56,11 @@ def _classify(doc, chunks) -> list:
         body = "\n\n".join(f"<passage n=\"{j + 1}\">\n{c.content}\n</passage>" for j, c in enumerate(batch))
         res = ask_json(SYSTEM, f"Document: {doc.title} (source: {doc.source}, default: {doc.default_scope})\n\n{body}")
         tags = res.get("tags", [])
-        if len(tags) != len(batch):
-            raise ValueError(f"{doc.title}: classifier returned {len(tags)} tags for {len(batch)} passages")
         floor = res.get("document", "keep")            # whole-document restriction covers untagged passages
+        if len(tags) != len(batch):
+            # Miscounted tags cannot be matched to passages. Tighten the whole batch to the first
+            # restricted tag the classifier named anywhere; never guess toward open.
+            floor = next((t for t in [floor] + list(tags) if t in RESTRICTED), "keep")
+            tags = [floor] * len(batch)
         out.extend(t if t in RESTRICTED else floor for t in tags)
     return out

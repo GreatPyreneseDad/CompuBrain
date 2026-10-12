@@ -4,11 +4,13 @@ A section can carry its own scope with a marker line directly under its heading:
     ## Compensation bands
     <!-- scope: people -->
 The marker covers that section only. Everything else takes the document's default scope.
+
+EXPERIMENTAL: .docx files are supported. Text is extracted via ingest.docx.extract_text() and
+then processed like plain text.
 """
 from __future__ import annotations
 import re, pathlib
 from dataclasses import dataclass
-import yaml
 
 MAX_WORDS = 300
 MARKER = re.compile(r"^\s*<!--\s*scope:\s*([a-z]+)\s*-->\s*$", re.M)
@@ -30,10 +32,32 @@ class Doc:
     chunks: list
 
 def load(path, source=None, default_scope=None) -> Doc:
+    """Load and chunk a document from .md, .txt, or .docx.
+    
+    CLASSIC: .md and .txt only
+    EXPERIMENTAL: also .docx (extracts text, no frontmatter support)
+    """
     path = pathlib.Path(path)
+    
+    # EXPERIMENTAL: handle .docx
+    if path.suffix == '.docx':
+        from ingest.docx import extract_text
+        text = _headings_from_plain(extract_text(path))
+        if not source or not default_scope:
+            raise ValueError(f"{path.name}: .docx files require --source and --default-scope")
+        return Doc(
+            title=path.stem.replace("-", " ").replace("_", " ").title(),
+            source=source,
+            default_scope=default_scope,
+            pretagged=False,
+            chunks=split(text)
+        )
+    
+    # CLASSIC: .md and .txt with optional frontmatter
     text = path.read_text(encoding="utf-8", errors="replace")
     meta = {}
     if text.startswith("---"):
+        import yaml  # lazy import: not needed for .docx path
         _, front, text = text.split("---", 2)
         meta = yaml.safe_load(front) or {}
     scope = meta.get("scope") or default_scope
@@ -42,6 +66,17 @@ def load(path, source=None, default_scope=None) -> Doc:
     return Doc(title=str(meta.get("title") or path.stem.replace("-", " ").title()),
                source=str(meta.get("source") or source or "upload"),
                default_scope=scope, pretagged="scope" in meta, chunks=split(text))
+
+def _headings_from_plain(text: str) -> str:
+    """Word text has no Markdown. Treat a short line with no closing punctuation, followed by a
+    paragraph, as a section heading, so a Word document splits (and is scope-tagged) by section."""
+    paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    out = []
+    for i, p in enumerate(paras):
+        is_heading = (len(p) <= 70 and "\n" not in p and not p.endswith((".", ":", ";", ",", "?", "!"))
+                      and i + 1 < len(paras))
+        out.append(("# " if i == 0 else "## ") + p if is_heading else p)
+    return "\n\n".join(out)
 
 def split(text: str) -> list:
     sections, path, body = [], [], []          # path = heading trail, body = lines of current section

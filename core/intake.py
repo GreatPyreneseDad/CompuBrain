@@ -137,7 +137,7 @@ def run(title: str) -> list:
 
 def title_of(arg: str) -> str:
     """Accept a document title or the path of an ingested file."""
-    if arg.endswith((".md", ".txt")):
+    if arg.endswith((".md", ".txt", ".docx")):
         from ingest import chunk
         return chunk.load(arg, "inbox", "internal").title
     return arg

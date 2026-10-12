@@ -4,6 +4,8 @@
   python -m ingest.run_sf handout/ --source handout --default-scope internal
   python -m ingest.run_sf --digests-only
 
+EXPERIMENTAL: .docx files are supported alongside .md and .txt.
+
 Chunking, tagging and summaries run here against the Anthropic API. Embeddings come from
 ingest.embed, or from Cortex with BRAIN_SF_EMBED=cortex (paid accounts only). Connects as BRAIN_OWNER, which the scope map lets
 see every scope. Re-ingesting a document (same source and title) replaces it.
@@ -96,7 +98,8 @@ def main():
 
     files = []
     for p in map(pathlib.Path, args.paths):
-        files += sorted(f for f in p.rglob("*") if f.suffix in (".md", ".txt")) if p.is_dir() else [p]
+        # EXPERIMENTAL: include .docx
+        files += sorted(f for f in p.rglob("*") if f.suffix in (".md", ".txt", ".docx")) if p.is_dir() else [p]
 
     with connect("BRAIN_OWNER") as conn:
         cur = conn.cursor()
