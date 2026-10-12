@@ -50,6 +50,37 @@ team may know. And the people who hit the wall can extend it themselves."
 
 The model words things differently on each run. Do not promise a specific issue list.
 
+## Beat 6: flow (local page)
+
+Scroll to the **Flow** panel on http://localhost:8000.
+
+1. Click **Maya**, then **Dana**. Same panel, more work visible: the forecast is gated like the answers.
+2. Read the headline and the first choke point aloud. Engineering, Product and Legal are where requests pile up.
+3. Open one outbox row to Legal. "The brain wrote this, sent it to Legal's inbox, and left out what Legal's
+   scope does not cover."
+
+Say: "It knows who is waiting on whom, and it asks on their behalf."
+
+Capacity per department is an illustrative number. Do not present the forecast as a trained predictor.
+
+## Beat 7: an email the brain could not read (already run; walk the trail)
+
+Do not rerun this live: the CERATA step takes about ten minutes. Walk the record in the repo instead.
+
+1. `inbox/mail-halcyon-…md` and `inbox/halcyon-amendment-1.rtf`: an email with an attachment, pulled in by the mail loop.
+2. Issues #15 and #18: the work planned from the email body.
+3. Issue #19, "The brain cannot read .rtf files": the brain's own request, with the `/cerata consume` command it wrote.
+4. PR #20: CERATA's reader. It arrived as a draft marked "do not merge" because one test was red; the review
+   comment explains the test was wrong and what was fixed.
+5. Issues #21 and #22: after the merge, the brain went back and read the amendment. Leadership's first task is
+   to confirm the amendment is genuine, because it came from a personal address, not a signatory at the customer.
+
+Say: "It didn't guess at a file it couldn't read. It said what it needed, the tool was built and reviewed,
+and it finished the job."
+
+If asked: issue #19 closed one run before the amendment was actually planned; that was a bug in the catch-up,
+fixed in the next commit.
+
 ## If asked
 
 - **Why not Cortex Search?** A search service runs with its owner's rights and takes its access
