@@ -24,6 +24,17 @@ def _get(path):
 def _slug(s: str, n: int = 48) -> str:
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")[:n] or "mail"
 
+def public_sender(sender: str) -> str:
+    """'Name <user@host>' -> 'Name (host address)'. The full address goes only to MAIL_SEEN, behind the gate;
+    inbox/ and GitHub issues are public copies."""
+    mm = re.match(r"\s*(.*?)\s*<([^>]+)>\s*$", sender or "")
+    if mm:
+        name, addr = mm.group(1).strip().strip('"'), mm.group(2)
+    else:
+        name, addr = "", (sender or "").strip()
+    host = addr.split("@")[-1] if "@" in addr else addr
+    return f"{name} ({host} address)" if name else (f"a {host} address" if host else "an unknown sender")
+
 def pull() -> tuple:
     """Write new received messages to inbox/. Returns (files, senders)."""
     box = urllib.parse.quote(INBOX_ADDR)
@@ -49,13 +60,13 @@ def pull() -> tuple:
                 continue
             target = OUT / name
             target.write_bytes(data)
-            saved.append(str(target)); senders[str(target)] = sender
+            saved.append(str(target)); senders[str(target)] = public_sender(sender)
         title = f"Email - {subject}".replace('"', "'")
         note = ("\n\nAttachments received with this email: " + ", ".join(pathlib.Path(s).name for s in saved) + ".") if saved else ""
         doc = OUT / f"mail-{slug}.md"
         doc.write_text(f'---\ntitle: "{title}"\nsource: email\n---\n# {subject}\n\n'
-                       f"Email received {d.get('timestamp', '')[:10]} from {sender}.\n\n{body}{note}\n")
-        files += [str(doc)] + saved; senders[str(doc)] = sender
+                       f"Email received {d.get('timestamp', '')[:10]} from {public_sender(sender)}.\n\n{body}{note}\n")
+        files += [str(doc)] + saved; senders[str(doc)] = public_sender(sender)
         gate.query("BRAIN_OWNER", "insert into mail_seen (message_id, sender, subject, files) values (%s, %s, %s, %s)",
                    (m["message_id"], sender, subject, ",".join([str(doc)] + saved)))
         print(f"mail: {subject!r} from {sender} -> {doc.name}" + (f" + {len(saved)} attachment(s)" if saved else ""))

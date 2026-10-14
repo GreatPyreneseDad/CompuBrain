@@ -1,18 +1,26 @@
 # Company Brain
 
-A knowledge store answered through one gate: the asker's identity decides what the model may see
-before it sees anything, then decides how the answer is rendered.
+A company knowledge store that knows who is asking. The asker's identity decides what the model may
+see **before** it sees anything (the limit is a Snowflake row access policy, not a prompt), then
+decides how the answer is rendered. Agents are held to the same gate as people. When documents
+disagree, the brain reports the conflict instead of averaging it. Every question, refusal and
+action is ledgered with the role that ran it.
 
-## State
+Built for the Company Brain Hackathon, 12 October 2026. Scored third of ten finalists on the judges' sheet.
 
-| Piece | State |
-| --- | --- |
-| `corpus/` | Done. 48 synthetic documents for the fictional company Kestrel Ridge. |
-| `ingest/` | Done. Chunking, tagging, summaries and digests run against the Anthropic API. |
-| `sf/` (Snowflake store and gate) | Done. Applied, corpus ingested, 69 gate assertions pass on a live Enterprise trial account. |
-| `db/` (Postgres store and gate) | Done and tested on Postgres 16 + pgvector. Kept as the fallback. |
-| `core/` (identity, gate, retrieval, render, ledger) | Done. `python -m core.demo` asserts the four demo beats against Snowflake; all pass. |
-| `api/`, `ui/` | Done. `/ask`, `/ledger`, and the three-asker page. Ingest is a command, not a route. |
+- **Ask.** One question, three askers, three answers cut by scope. A question about pay is refused for
+  all of them because the database returns no rows.
+- **Act.** A document pushed to `inbox/`, or emailed to the company inbox, becomes one GitHub issue per
+  team with work to do, each written under that team's role, plus unblock emails to the departments
+  it waits on and a forecast of where work will jam.
+- **Grow.** A file the brain cannot read raises a tooling request, and
+  [CERATA](https://github.com/GreatPyreneseDad/CERATA-Project) opens a pull request with the reader.
+  A person merges it; the brain then processes the file. Issue #19 → PR #20 → issue #22 is one such run.
+
+Stack: Snowflake (row access policy, `VECTOR` columns), Claude Haiku 5.5 (ingest) and Sonnet 5.5
+(answers), GitHub Actions, CERATA, AgentMail. The company and its customers are fictional; the
+stored data is real. Demo video and screenshots are on the
+[DevPost page](https://company-brain-oct-2026.devpost.com/). The walkthrough is in `demo.md`.
 
 ## Quick start
 
