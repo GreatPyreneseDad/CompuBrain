@@ -7,6 +7,5 @@
     "ingest/"
   ],
   "stall_rounds": 3,
-  "note": "Contract: goals/readers/referee.py, nine checks, each building its own sample file. Builders work under ingest/ and follow .cerata/guide.md (stdlib-only readers, no env or network). Verified 9/9 against a throwaway reference and against seven mutants that each fail exactly their own check (slides in file-name order, script/style kept, naive comma split, raw .eml, case-sensitive routing, a reader importing urllib and reading the environment, loading without source/scope); the reference was deleted. Check 8 includes a live bug: today REPORT.DOCX passes the READERS gate and is then read as UTF-8 bytes.",
-  "hold": true
+  "note": "Contract: goals/readers/referee.py, nine checks, each building its own sample file. Builders work under ingest/ and follow .cerata/guide.md (stdlib-only readers, no env or network). Verified 9/9 against a throwaway reference and against seven mutants that each fail exactly their own check (slides in file-name order, script/style kept, naive comma split, raw .eml, case-sensitive routing, a reader importing urllib and reading the environment, loading without source/scope); the reference was deleted. Check 8 includes a live bug: today REPORT.DOCX passes the READERS gate and is then read as UTF-8 bytes."
 }
