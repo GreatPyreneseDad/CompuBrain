@@ -1,0 +1,55 @@
+# buildup evidence: a finding about this repo is verified by this repo's CI, not by whoever filed it.
+# Runs buildup's forge-blind runner (pinned) on each finding in findings/, records the result on the ledger.
+# red = the finding stands (job succeeds). green = it did not reproduce (job fails, so it's visible).
+name: buildup-evidence
+on:
+  workflow_dispatch:
+    inputs:
+      finding_path: { description: "path to a finding.v0 json in this repo", required: true }
+  push:
+    paths: ["findings/**.json", ".github/workflows/buildup-evidence.yml"]
+
+permissions: { contents: read }
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    outputs: { paths: "${{ steps.c.outputs.paths }}" }
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - id: c
+        env: { ONE: "${{ inputs.finding_path }}" }
+        run: |
+          if [ -n "$ONE" ]; then echo "paths=[\"$ONE\"]" >> "$GITHUB_OUTPUT";
+          else echo "paths=$(ls findings/*.json | jq -R . | jq -c -s .)" >> "$GITHUB_OUTPUT"; fi
+
+  rerun:
+    needs: collect
+    runs-on: ubuntu-latest
+    strategy: { fail-fast: false, matrix: { path: "${{ fromJson(needs.collect.outputs.paths) }}" } }
+    name: ${{ matrix.path }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: run evidence
+        env:
+          P: ${{ matrix.path }}
+          INGEST_URL: ${{ vars.BUILDUP_INGEST_URL }}
+          INGEST_SECRET: ${{ secrets.BUILDUP_INGEST_SECRET }}
+          BUILDUP_REPO_URL: ${{ vars.BUILDUP_REPO_URL }}
+          RUNNER: https://raw.githubusercontent.com/GreatPyreneseDad/buildup/f41de85b003f32a93a30e54360d032ce45ebabc3/runner/rerun.sh
+        run: |
+          [ -n "$INGEST_URL" ] && [ -n "$INGEST_SECRET" ] || { echo "::error::BUILDUP_INGEST_URL / BUILDUP_INGEST_SECRET not set"; exit 1; }
+          curl -fsSL "$RUNNER" -o /tmp/rerun.sh; cp "$P" /tmp/finding.json
+          pip install -q -r requirements.txt
+          R=$(bash /tmp/rerun.sh /tmp/finding.json "$GITHUB_WORKSPACE"); echo "$R" | jq .
+          RESULT=$(jq -r .result <<<"$R"); echo "RESULT=$RESULT" >> "$GITHUB_STEP_SUMMARY"
+          BODY=$(jq -c -n --argjson r "$R" --arg url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+                 '{type:"finding_verified", forge:"github", run_url:$url, result:$r.result, finding_sha256:$r.finding_sha256, repo:$r.repo, commit:$r.commit, exit:$r.exit}')
+          SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$INGEST_SECRET" | awk '{print $NF}')
+          curl -sS -X POST "$INGEST_URL" -H "content-type: application/json" -H "x-buildup-signature: sha256=$SIG" \
+               -H "x-buildup-repo: ${BUILDUP_REPO_URL:-$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git}" -d "$BODY"; echo
+          [ "$RESULT" = red ] && echo "::notice::RESULT=red — finding STANDS" || { echo "::error::RESULT=green — finding did not reproduce"; exit 1; }

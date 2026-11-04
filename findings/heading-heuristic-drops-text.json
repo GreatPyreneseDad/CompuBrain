@@ -1,0 +1,20 @@
+{
+  "kind": "bug",
+  "location": {
+    "repo": "https://github.com/GreatPyreneseDad/CompuBrain.git",
+    "commit": "965e399c76a4b915cb1bc2bc2c142faacb725804",
+    "path": "ingest/chunk.py",
+    "line_start": 103,
+    "line_end": 122
+  },
+  "defect": "_headings_from_plain() turns a short line into a heading even when the next paragraph is another short line, so it becomes a heading with no body; split() then replaces it with the next sibling heading and drops the empty section. The text is silently lost from the brain. Every plug-in reader goes through this path (.docx, .rtf, .xlsx, .pptx, .html, .csv, .eml): a Word memo with four short lines loses 'Revenue up' entirely.",
+  "severity": "high",
+  "evidence": {
+    "repro": {
+      "cmd": "python3 -c \"\nimport zipfile\nlines = ['Quarterly kickoff', 'Revenue up', 'Hiring plan', 'Ship readers by Friday.']\nbody = ''.join('<w:p><w:r><w:t>%s</w:t></w:r></w:p>' % s for s in lines)\nwith zipfile.ZipFile('heuristic-loss.docx', 'w') as z:\n    z.writestr('word/document.xml', '<w:document xmlns:w=\\\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\\\"><w:body>' + body + '</w:body></w:document>')\nfrom ingest import chunk\nd = chunk.load('heuristic-loss.docx', source='repro', default_scope='internal')\ntext = '\\n'.join(c.content for c in d.chunks)\nmissing = [s for s in lines if s not in text]\nassert not missing, 'lost from the brain: %s' % missing\nprint('all lines kept')\n\"",
+      "expect": "nonzero_exit",
+      "timeout_s": 120
+    },
+    "notes": "Builds a four-paragraph .docx in the work dir and loads it through chunk.load() exactly as intake does; asserts every line survives into some chunk. At the pinned commit: AssertionError: lost from the brain: ['Revenue up']. Found by the readers goal: the .pptx builder (CompuBrain #26) noticed body text disappearing and worked around it in its own reader instead of fixing chunk.py, which was outside its scope. Fix belongs in ingest/chunk.py; a heading with no body must keep its text (as a body line or in the trail of a chunk), and the existing ingest tests and goals/readers/acceptance.sh must stay green."
+  }
+}
