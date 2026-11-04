@@ -1,0 +1,54 @@
+# Argon and Grok use the help center in a real browser, check each other's findings, and file what they both
+# confirm as a proposal on buildup. Runs when helpcenter/ changes on main, or by hand. Does nothing until the
+# help center goal's referee is green, and files nothing while earlier review work is still in flight.
+# Secrets: GEMINI_API_KEY (Argon), XAI_API_KEY (Grok), REVIEWER_KEYS (the chris/reviewer pair's keys.json).
+name: helpcenter-review
+on:
+  push:
+    branches: [main]
+    paths: ["helpcenter/**", "review/**", ".github/workflows/helpcenter-review.yml"]
+  workflow_dispatch:
+    inputs:
+      dry: { description: "review only, file nothing", type: boolean, default: false }
+      force: { description: "review even if the referee is not green", type: boolean, default: false }
+
+permissions: { contents: write, pull-requests: write }
+concurrency: { group: helpcenter-review, cancel-in-progress: false }
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/checkout@v4
+        with: { repository: GreatPyreneseDad/tatemae, path: .tatemae, persist-credentials: false }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - name: browser
+        run: pip install -q pyyaml playwright && python -m playwright install --with-deps chromium
+      - name: review
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          REVIEWER_KEYS: ${{ secrets.REVIEWER_KEYS }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REVIEW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DRY: ${{ inputs.dry }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          [ -n "$GEMINI_API_KEY" ] && [ -n "$XAI_API_KEY" ] || { echo "::notice::GEMINI_API_KEY and XAI_API_KEY secrets are not set; no review"; exit 0; }
+          mkdir -p "$RUNNER_TEMP/reviewer"; ARGS=()
+          if [ -n "$REVIEWER_KEYS" ]; then printf '%s' "$REVIEWER_KEYS" > "$RUNNER_TEMP/reviewer/keys.json"; chmod 600 "$RUNNER_TEMP/reviewer/keys.json"
+          else echo "::warning::REVIEWER_KEYS not set: reviewing without filing"; ARGS+=(--dry); fi
+          [ "$DRY" = true ] && ARGS+=(--dry); [ "$FORCE" = true ] && ARGS+=(--force)
+          git config user.name "helpcenter review"; git config user.email review@buildup.network
+          TATEMAE_CLI="$GITHUB_WORKSPACE/.tatemae/cli/tatemae.js" TATEMAE_HOME="$RUNNER_TEMP/reviewer" \
+            python -m review.run --work "$RUNNER_TEMP/review" "${ARGS[@]}"
+          [ -f "$RUNNER_TEMP/review/report.md" ] && cat "$RUNNER_TEMP/review/report.md" >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: helpcenter-review, path: "${{ runner.temp }}/review/report.*\n${{ runner.temp }}/review/shots/", if-no-files-found: ignore, retention-days: 30 }
