@@ -82,7 +82,9 @@ def build(out: Path, work: Path, token: str = "helpcenter-public") -> Path:
     (copy / "core" / "gate.py").write_text(GATE)
     db = work / "preview.db"
     n = make_db(db, ROOT / "corpus")
-    env = {**os.environ, "HC_GATE_DB": str(db), "HELPCENTER_TOKEN": token, "PYTHONPATH": str(copy)}
+    # helpcenter/ is code the network wrote: it runs with a bare environment, never the reviewer's keys or tokens
+    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(work), "LANG": "C.UTF-8",
+           "HC_GATE_DB": str(db), "HELPCENTER_TOKEN": token, "PYTHONPATH": str(copy)}
     r = subprocess.run([sys.executable, "-m", "helpcenter.build", "--out", str(out)], cwd=copy, env=env, capture_output=True, text=True, timeout=300)
     if r.returncode != 0:
         raise RuntimeError(f"helpcenter.build failed: {(r.stdout + r.stderr)[-800:]}")

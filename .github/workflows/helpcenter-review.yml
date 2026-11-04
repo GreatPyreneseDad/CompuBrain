@@ -3,10 +3,8 @@
 # help center goal's referee is green, and files nothing while earlier review work is still in flight.
 # Secrets: GEMINI_API_KEY (Argon), XAI_API_KEY (Grok), REVIEWER_KEYS (the chris/reviewer pair's keys.json).
 name: helpcenter-review
+# Paused: reviewing belongs with the network (the judge VM holds the model keys), not in each repo. Manual only.
 on:
-  push:
-    branches: [main]
-    paths: ["helpcenter/**", "review/**", ".github/workflows/helpcenter-review.yml"]
   workflow_dispatch:
     inputs:
       dry: { description: "review only, file nothing", type: boolean, default: false }
