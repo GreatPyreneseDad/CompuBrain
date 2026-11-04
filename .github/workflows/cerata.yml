@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: GreatPyreneseDad/CERATA-Project@11bae64c84714b713cafe1681389c44648782b20   # v2: whole-file reads, find/replace edits, honest hunt scoring
+      - uses: GreatPyreneseDad/CERATA-Project@2cedcdaa676a5e14bb75de3ba23501f2425670f4   # v2 + sandbox: repros, suites and pip installs run boxed where the kernel allows
         with:
           command: ${{ github.event.inputs.command }}
           api-key: ${{ secrets.CERATA_API_KEY }}
