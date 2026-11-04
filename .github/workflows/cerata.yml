@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: GreatPyreneseDad/CERATA-Project@v2
+      - uses: GreatPyreneseDad/CERATA-Project@11bae64c84714b713cafe1681389c44648782b20   # v2: whole-file reads, find/replace edits, honest hunt scoring
         with:
           command: ${{ github.event.inputs.command }}
           api-key: ${{ secrets.CERATA_API_KEY }}
