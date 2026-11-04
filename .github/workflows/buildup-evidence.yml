@@ -1,5 +1,5 @@
 # buildup evidence: a finding about this repo is verified by this repo's CI, not by whoever filed it.
-# Runs buildup's forge-blind runner (pinned) on each finding in findings/, records the result on the ledger.
+# Runs buildup's forge-blind runner (vendored in runner/, pinned) on each finding in findings/, records the result on the ledger.
 # red = the finding stands (job succeeds). green = it did not reproduce (job fails, so it's visible).
 name: buildup-evidence
 on:
@@ -7,7 +7,7 @@ on:
     inputs:
       finding_path: { description: "path to a finding.v0 json in this repo", required: true }
   push:
-    paths: ["findings/**.json", ".github/workflows/buildup-evidence.yml"]
+    paths: ["findings/**.json", "runner/**", ".github/workflows/buildup-evidence.yml"]
 
 permissions: { contents: read }
 
@@ -40,10 +40,9 @@ jobs:
           INGEST_URL: ${{ vars.BUILDUP_INGEST_URL }}
           INGEST_SECRET: ${{ secrets.BUILDUP_INGEST_SECRET }}
           BUILDUP_REPO_URL: ${{ vars.BUILDUP_REPO_URL }}
-          RUNNER: https://raw.githubusercontent.com/GreatPyreneseDad/buildup/f41de85b003f32a93a30e54360d032ce45ebabc3/runner/rerun.sh
         run: |
           [ -n "$INGEST_URL" ] && [ -n "$INGEST_SECRET" ] || { echo "::error::BUILDUP_INGEST_URL / BUILDUP_INGEST_SECRET not set"; exit 1; }
-          curl -fsSL "$RUNNER" -o /tmp/rerun.sh; cp "$P" /tmp/finding.json
+          cp runner/rerun.sh /tmp/rerun.sh; cp "$P" /tmp/finding.json     # survive the pinned checkout
           pip install -q -r requirements.txt
           R=$(bash /tmp/rerun.sh /tmp/finding.json "$GITHUB_WORKSPACE"); echo "$R" | jq .
           RESULT=$(jq -r .result <<<"$R"); echo "RESULT=$RESULT" >> "$GITHUB_STEP_SUMMARY"
