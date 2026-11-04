@@ -10,7 +10,7 @@ set -a; [ -f brain.env ] && . ./brain.env; [ -f .env ] && . ./.env; set +a
 case "${1:-serve}" in
   serve)  exec python -W ignore -m uvicorn api.main:app --port 8000 ;;
   demo)   exec python -W ignore -m core.demo ;;
-  gate)   exec python -W ignore -m sf.test_gate ;;
+  gate)   exec python -W ignore -m sf.gate_check ;;
   ingest) shift; exec python -W ignore -m ingest.run_sf "$@" ;;
   *) echo "usage: ./run.sh [serve|demo|gate|ingest <path> --source NAME --default-scope SCOPE]"; exit 1 ;;
 esac

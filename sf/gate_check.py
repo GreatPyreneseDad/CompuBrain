@@ -1,6 +1,6 @@
 """Gate test on Snowflake. Run after 01_schema.sql and `python -m ingest.run_sf corpus/`.
 
-  python -m sf.test_gate
+  python -m sf.gate_check
 
 Becomes each asker role in turn and asserts what it can and cannot reach, at all three grains.
 Exits non-zero on the first failure.

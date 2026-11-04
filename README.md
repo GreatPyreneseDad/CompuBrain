@@ -42,7 +42,7 @@ Needs Enterprise Edition or higher: row access policies are not on Standard.
        export ANTHROPIC_API_KEY=...
        python -m sf.apply sf/01_schema.sql
        python -m ingest.run_sf corpus/
-       python -m sf.test_gate
+       python -m sf.gate_check
 
 Trial accounts cannot call any Cortex AI function (embeddings or completion), so embeddings are
 computed by `ingest/embed.py` and loaded into `VECTOR(FLOAT, 1024)` columns: set `VOYAGE_API_KEY`
