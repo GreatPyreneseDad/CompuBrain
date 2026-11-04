@@ -5,6 +5,7 @@
   GET  /forecast Authorization: Bearer <token>   choke points over the work this asker may see
   GET  /outbox   Authorization: Bearer <token>   unblock emails this asker may see
   GET  /         the asker-switcher page
+  GET  /help/    the customer help center (built by: python -m helpcenter.build --out helpcenter/dist)
 
 Ingest is a command, not a route:  python -m ingest.run_sf <path>
 """
@@ -12,6 +13,7 @@ import os, pathlib, threading
 from typing import Optional
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from core import gate, ledger, flow, identity
 from core.ask import ask
@@ -64,3 +66,9 @@ def outbox_route(authorization: Optional[str] = Header(None)):
 @app.get("/", response_class=HTMLResponse)
 def index():
     return UI.read_text()
+
+# The help center is static: built ahead of time as BRAIN_CUSTOMER, so a page can only hold what that role
+# could read. Its "ask us" box posts to /ask with the help center's public token, answered under the same gate.
+HELP = pathlib.Path(__file__).resolve().parent.parent / "helpcenter" / "dist"
+if HELP.is_dir():
+    app.mount("/help", StaticFiles(directory=str(HELP), html=True), name="help")

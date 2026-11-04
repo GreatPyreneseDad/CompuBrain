@@ -7,7 +7,7 @@ from __future__ import annotations
 import threading
 from sf.conn import connect
 
-ASKER_ROLES = {"BRAIN_SALES", "BRAIN_EXEC", "BRAIN_SUPPORT_AGENT"}
+ASKER_ROLES = {"BRAIN_SALES", "BRAIN_EXEC", "BRAIN_SUPPORT_AGENT", "BRAIN_CUSTOMER"}   # BRAIN_CUSTOMER: public only (sf/04_customer.sql)
 _sessions, _locks, _guard = {}, {}, threading.Lock()
 
 def _session(role: str):

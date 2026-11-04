@@ -1,0 +1,11 @@
+{
+  "name": "helpcenter",
+  "title": "A customer help center built from what a customer may see, with an ask box on every page",
+  "acceptance": "bash goals/helpcenter/acceptance.sh",
+  "checks": 10,
+  "scope": [
+    "helpcenter/"
+  ],
+  "stall_rounds": 3,
+  "note": "Contract: goals/helpcenter/referee.py, ten checks. python -m helpcenter.build --out <dir> writes a static site from core.gate.query('BRAIN_CUSTOMER', ...) only; the API serves it at /help/ and its ask box posts to /ask. The referee runs the build in a repo copy where core.gate is a SQLite gate holding exactly the public rows and refusing other roles, with canaries planted in corpus/ (an internal section of a public article, a restricted document) that only a gate bypass could reach. Verified 10/10 against a throwaway reference and against nine mutants that each fail their own check (unordered chunks, a second role, reading corpus/ from disk, unescaped content (also fails 2: the chunk's text is swallowed), a root-absolute link, a CDN stylesheet, innerHTML for the answer, a build timestamp, importing urllib); the reference was deleted. Role and token: sf/04_customer_admin.sql + sf/04_customer.sql. Once pages exist, Argon and Grok review them in a browser and file what they both find as proposals."
+}
