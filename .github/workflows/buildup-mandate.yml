@@ -1,0 +1,48 @@
+# GitHub shim for mandate enforcement. Logic lives in ingest (mandate_check); this only gathers git facts.
+# Every PR must carry a `Buildup-Mandate: <jti>` trailer on at least one commit. Builder mandates also need
+# `Buildup-Nonce: <nonce>` and a reasoning note whose first line is HMAC-SHA256(nonce, head_sha), in the PR body.
+# Make this check required on main and only the judge identity may merge: that is the forge's job, not ours.
+name: buildup-mandate
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: gather facts and ask the ledger
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          REPO_URL: ${{ github.event.repository.clone_url }}
+          INGEST_URL: ${{ vars.BUILDUP_INGEST_URL }}
+          INGEST_SECRET: ${{ secrets.BUILDUP_INGEST_SECRET }}
+          BUILDUP_REPO_URL: ${{ vars.BUILDUP_REPO_URL }}
+        run: |
+          [ -n "$INGEST_URL" ] && [ -n "$INGEST_SECRET" ] || { echo "::error::BUILDUP_INGEST_URL / BUILDUP_INGEST_SECRET not set"; exit 1; }
+          CHANGED=$(git diff --name-only "$BASE" "$HEAD" | jq -R . | jq -c -s .)
+          COMMITS=$(git log --format='%H%x00%B%x01' "$BASE..$HEAD" | python3 -c '
+          import sys,json; raw=sys.stdin.read().split("\x01"); out=[]
+          for r in raw:
+            r=r.strip("\n")
+            if not r: continue
+            sha,msg=r.split("\x00",1); out.append({"sha":sha,"message":msg})
+          print(json.dumps(out))')
+          if [ -n "$(git log --format='%(trailers:key=Buildup-Proposal,valueonly)' "$BASE..$HEAD" | grep -v '^$')" ]; then
+            echo "::notice::proposal PR: reference code, not a build. No mandate needed; it will not be merged as-is. File it at buildup.network to have the judges lay it out as bounties."; exit 0; fi
+          JTI=$(git log --format='%(trailers:key=Buildup-Mandate,valueonly)' "$BASE..$HEAD" | grep -v '^$' | tail -1)
+          [ -n "$JTI" ] || { echo "::error::no Buildup-Mandate trailer on any commit in this PR"; exit 1; }
+          NOTE=$(printf '%s' "$PR_BODY" | sed -n '/^<!-- buildup-reasoning -->$/,/^<!-- \/buildup-reasoning -->$/p' | sed '1d;$d')
+          BODY=$(jq -c -n --arg jti "$JTI" --arg repo "$REPO_URL" --arg head "$HEAD" --argjson cp "$CHANGED" --argjson c "$COMMITS" --arg note "$NOTE" \
+                 '{type:"mandate_check", jti:$jti, repo:$repo, head_sha:$head, changed_paths:$cp, commits:$c, reasoning_note:$note}')
+          SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$INGEST_SECRET" | awk '{print $NF}')
+          RESP=$(curl -sS -w '\n%{http_code}' -X POST "$INGEST_URL" -H "content-type: application/json" -H "x-buildup-signature: sha256=$SIG" -H "x-buildup-repo: ${BUILDUP_REPO_URL:-$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git}" -d "$BODY")
+          CODE=$(tail -n1 <<<"$RESP"); JSON=$(sed '$d' <<<"$RESP")
+          echo "$JSON" | jq .
+          echo "mandate: $JTI" >> "$GITHUB_STEP_SUMMARY"; echo "label: $(jq -r .label <<<"$JSON")" >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.violations[]? | "::error::" + .' <<<"$JSON"
+          [ "$CODE" = 200 ] && echo "::notice::mandate honored ($(jq -r .label <<<"$JSON"))" || exit 1
