@@ -106,16 +106,23 @@ def _headings_from_plain(text: str) -> str:
     section. The body may follow after a blank line or on the very next line."""
     def looks_like_heading(line: str) -> bool:
         return 0 < len(line) <= 70 and not line.endswith((".", ":", ";", ",", "?", "!"))
+    def has_own_body(p: str) -> bool:
+        head, _, rest = p.partition("\n")
+        return bool(rest.strip()) and looks_like_heading(head.strip())
     paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
-    out, first = [], True
+    out, first, bodyless = [], True, False       # bodyless: the last heading emitted still waits for its body
     for i, p in enumerate(paras):
         head, _, rest = p.partition("\n")
-        if rest.strip() and looks_like_heading(head.strip()):            # heading with its body right under it
+        if has_own_body(p):                                              # heading with its body right under it
             out.append(("# " if first else "## ") + head.strip()); out.append(rest.strip())
-        elif "\n" not in p and looks_like_heading(p) and i + 1 < len(paras):
-            out.append(("# " if first else "## ") + p)
+            bodyless = False
+        elif ("\n" not in p and looks_like_heading(p) and not bodyless
+              and i + 1 < len(paras) and not has_own_body(paras[i + 1])):
+            out.append(("# " if first else "## ") + p)                   # next paragraph will be its body
+            bodyless = True
         else:
-            out.append(p)
+            out.append(p)                                                # body text, never dropped
+            bodyless = False
         first = False
     return "\n\n".join(out)
 
