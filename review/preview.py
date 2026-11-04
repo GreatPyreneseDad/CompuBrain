@@ -1,4 +1,4 @@
-"""Preview world for reviewing the help center without Snowflake.
+"""Preview build of the help center for the network's reviewers, without Snowflake.
 
 The real site is built as BRAIN_CUSTOMER against Snowflake. Reviewers need the real articles, so this builds a SQLite
 gate holding what that role would see: every chunk of corpus/ whose scope is public (frontmatter scope, overridden per
@@ -76,7 +76,7 @@ def build(out: Path, work: Path, token: str = "helpcenter-public") -> Path:
         shutil.rmtree(copy)
     files = subprocess.run(["git", "ls-files", "-co", "--exclude-standard"], cwd=ROOT, capture_output=True, text=True).stdout.split()
     for f in files:
-        if f.startswith("helpcenter/dist/") or not (ROOT / f).is_file():
+        if f.startswith(("helpcenter/dist/", ".buildup")) or not (ROOT / f).is_file():
             continue
         (copy / f).parent.mkdir(parents=True, exist_ok=True); shutil.copy2(ROOT / f, copy / f)
     (copy / "core" / "gate.py").write_text(GATE)
@@ -90,3 +90,11 @@ def build(out: Path, work: Path, token: str = "helpcenter-public") -> Path:
         raise RuntimeError(f"helpcenter.build failed: {(r.stdout + r.stderr)[-800:]}")
     print(f"preview: built {out} from {n} public documents")
     return db
+
+
+if __name__ == "__main__":
+    # the network's reviewers build the site with this, inside the sandbox:  python3 -m review.preview --out <dir> --work <dir>
+    import argparse
+    ap = argparse.ArgumentParser(); ap.add_argument("--out", required=True); ap.add_argument("--work", required=True); a = ap.parse_args()
+    w = Path(a.work); w.mkdir(parents=True, exist_ok=True)
+    build(Path(a.out), w)

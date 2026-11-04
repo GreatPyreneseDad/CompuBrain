@@ -1,0 +1,11 @@
+{
+  "goal": "goals/helpcenter/goal.json",
+  "build": "python3 -m review.preview --out {out} --work {work}",
+  "site_prefix": "/help/",
+  "tasks": [
+    ["desktop", "You are a new Ridgeline customer (Ridgeline is made by Kestrel Ridge). Using this help center, find out how to invite your team to your workspace."],
+    ["desktop", "You bought an annual plan three weeks ago and want your money back. Find out whether you can get a refund, first by browsing, then by asking your question in the ask box on the page."],
+    ["phone", "You are on your phone. Find the instructions for setting up single sign-on, and check the pages are comfortable to read and use at this size."],
+    ["desktop", "Use this help center the way a customer would: browse, follow links, use the ask box with a question of your own, try the keyboard (Tab) to move around. Note anything broken, confusing, inaccessible or poorly presented."]
+  ]
+}
