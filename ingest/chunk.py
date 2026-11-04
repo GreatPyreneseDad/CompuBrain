@@ -5,18 +5,46 @@ A section can carry its own scope with a marker line directly under its heading:
     <!-- scope: people -->
 The marker covers that section only. Everything else takes the document's default scope.
 
-EXPERIMENTAL: .docx and .rtf files are supported. Text is extracted via ingest.docx.extract_text()
-or ingest.rtf.extract_text() and then processed like plain text.
+Other file types are plug-in readers: a module ingest/<format>.py that declares the extensions it reads,
+    EXTENSIONS = (".docx",)
+and exposes extract_text(path) -> str. load() finds it by that declaration, so adding a reader is one new file
+and no edit here. .docx and .rtf are readers of this kind.
 """
 from __future__ import annotations
-import re, pathlib
+import ast, importlib, re, pathlib
 from dataclasses import dataclass
 
 MAX_WORDS = 300
 
-# File types the brain can read. A new reader is registered here and routed in load().
+PLAIN = {".md", ".txt"}
+
+def _discover() -> dict:
+    """extension → reader module name, read statically from each ingest/*.py's top-level EXTENSIONS.
+    Nothing is imported here: a reader loads only when a file of its type does."""
+    found = {}
+    for f in sorted(pathlib.Path(__file__).parent.glob("*.py")):
+        if f.name.startswith(("test_", "_")) or f.stem == "chunk":
+            continue
+        try:
+            tree = ast.parse(f.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for node in tree.body:
+            if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "EXTENSIONS" for t in node.targets):
+                try:
+                    exts = ast.literal_eval(node.value)
+                except ValueError:
+                    continue
+                for e in ([exts] if isinstance(exts, str) else exts):
+                    if isinstance(e, str) and e.startswith(".") and e.lower() not in PLAIN:
+                        found.setdefault(e.lower(), f.stem)
+    return found
+
+_PLUGINS = _discover()
+
+# File types the brain can read: plain text plus every plug-in reader. Callers test `suffix.lower() in READERS`.
 # Anything else raises UnsupportedFormat, which is how the brain learns it is missing a tool.
-READERS = {".md", ".txt", ".docx", ".rtf"}
+READERS = PLAIN | set(_PLUGINS)
 
 class UnsupportedFormat(ValueError):
     pass
@@ -39,21 +67,17 @@ class Doc:
     chunks: list
 
 def load(path, source=None, default_scope=None) -> Doc:
-    """Load and chunk a document from .md, .txt, .docx, or .rtf.
-    
-    CLASSIC: .md and .txt only
-    EXPERIMENTAL: also .docx and .rtf (extract text, no frontmatter support)
-    """
+    """Load and chunk a document: .md/.txt (with optional frontmatter) or any plug-in reader's type."""
     path = pathlib.Path(path)
     if path.suffix.lower() not in READERS:
         raise UnsupportedFormat(f"{path.name}: no reader for {path.suffix or 'this file type'}")
 
-    # EXPERIMENTAL: handle .docx
-    if path.suffix == '.docx':
-        from ingest.docx import extract_text
-        text = _headings_from_plain(extract_text(path))
+    ext = path.suffix.lower()          # routing is case-insensitive: REPORT.DOCX is a .docx
+    if ext in _PLUGINS:
+        reader = importlib.import_module(f"ingest.{_PLUGINS[ext]}")
         if not source or not default_scope:
-            raise ValueError(f"{path.name}: .docx files require --source and --default-scope")
+            raise ValueError(f"{path.name}: {ext} files require --source and --default-scope")
+        text = _headings_from_plain(reader.extract_text(path))
         return Doc(
             title=path.stem.replace("-", " ").replace("_", " ").title(),
             source=source,
@@ -61,21 +85,7 @@ def load(path, source=None, default_scope=None) -> Doc:
             pretagged=False,
             chunks=split(text)
         )
-    
-    # EXPERIMENTAL: handle .rtf
-    if path.suffix == '.rtf':
-        from ingest.rtf import extract_text
-        text = _headings_from_plain(extract_text(path))
-        if not source or not default_scope:
-            raise ValueError(f"{path.name}: .rtf files require --source and --default-scope")
-        return Doc(
-            title=path.stem.replace("-", " ").replace("_", " ").title(),
-            source=source,
-            default_scope=default_scope,
-            pretagged=False,
-            chunks=split(text)
-        )
-    
+
     # CLASSIC: .md and .txt with optional frontmatter
     text = path.read_text(encoding="utf-8", errors="replace")
     meta = {}

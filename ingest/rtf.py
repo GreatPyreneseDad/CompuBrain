@@ -11,6 +11,8 @@ Adapted for Company Brain:
 - No CLI, no network calls, stdlib only
 """
 from __future__ import annotations
+
+EXTENSIONS = (".rtf",)
 import re
 from pathlib import Path
 

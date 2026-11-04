@@ -10,6 +10,8 @@ Adapted for Company Brain:
 - Integrated into ingest pipeline (no standalone script)
 """
 from __future__ import annotations
+
+EXTENSIONS = (".docx",)
 import re
 import xml.etree.ElementTree as ET
 import zipfile

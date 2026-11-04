@@ -27,8 +27,8 @@ def command_for(ext: str):
         return None
     prey, what = KNOWN_PREY[ext]
     return (f"consume {prey} -- add a reader for {ext} files to ingest: {what}. "
-            f"Follow .cerata/guide.md: one module ingest/{ext.lstrip('.')}.py with extract_text(path), "
-            f"register '{ext}' in ingest.chunk.READERS and route it in ingest.chunk.load like .docx.")
+            f"Follow .cerata/guide.md: one new module under ingest/ declaring EXTENSIONS = (\"{ext}\",) "
+            f"and exposing extract_text(path). No edit to ingest/chunk.py: load() finds the reader by its declaration.")
 
 def request(path: str, sender: str = "") -> str:
     """Open (or find) the tooling issue for this file type and start CERATA. Returns the issue URL."""
