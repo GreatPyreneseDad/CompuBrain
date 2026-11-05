@@ -84,17 +84,43 @@ def esc(text):
 INLINE = re.compile(r"`([^`\n]+)`|\*\*(?=\S)(.+?)(?<=\S)\*\*")
 
 
+# links in plain text: a scheme URL, an email address, or a bare host with a path (kestrelridge.example/security.txt)
+LINK = re.compile(
+    r"""(?P<url>https?://[^\s<>"']+)"""
+    r"""|(?P<mail>[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)"""
+    r"""|(?P<bare>(?<![\w@./-])(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}/[^\s<>"']*)"""
+)
+
+
+def linkify(text):
+    """Escape plain text and turn the emails and URLs in it into links; trailing punctuation stays outside."""
+    out, pos = [], 0
+    for m in LINK.finditer(text):
+        token = m.group(0)
+        while token and (token[-1] in ".,;:!?" or (token[-1] == ")" and token.count(")") > token.count("("))):
+            token = token[:-1]
+        kind = m.lastgroup
+        if not token or (kind == "bare" and token.endswith("/") and "/" not in token[:-1].split("//")[-1] and False):
+            continue
+        href = {"url": token, "mail": "mailto:" + token, "bare": "https://" + token}[kind]
+        out.append(esc(text[pos:m.start()]))
+        out.append(f'<a href="{esc(href)}">{esc(token)}</a>')
+        pos = m.start() + len(token)
+    out.append(esc(text[pos:]))
+    return "".join(out)
+
+
 def inline(text):
-    """Escape text and render its inline markdown bold and code as strong and code elements."""
+    """Escape text and render its inline markdown bold and code as strong and code elements, and link emails and URLs."""
     out, pos = [], 0
     for m in INLINE.finditer(text):
-        out.append(esc(text[pos:m.start()]))
+        out.append(linkify(text[pos:m.start()]))
         if m.group(1) is not None:
             out.append(f"<code>{esc(m.group(1))}</code>")
         else:
             out.append(f"<strong>{inline(m.group(2))}</strong>")
         pos = m.end()
-    out.append(esc(text[pos:]))
+    out.append(linkify(text[pos:]))
     return "".join(out)
 
 
