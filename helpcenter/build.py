@@ -78,6 +78,24 @@ def esc(text):
     return html.escape(str(text), quote=True)
 
 
+# inline markdown: `code` and **bold**; whichever starts first wins, so ** inside a code span stays literal
+INLINE = re.compile(r"`([^`\n]+)`|\*\*(?=\S)(.+?)(?<=\S)\*\*")
+
+
+def inline(text):
+    """Escape text and render its inline markdown bold and code as strong and code elements."""
+    out, pos = [], 0
+    for m in INLINE.finditer(text):
+        out.append(esc(text[pos:m.start()]))
+        if m.group(1) is not None:
+            out.append(f"<code>{esc(m.group(1))}</code>")
+        else:
+            out.append(f"<strong>{inline(m.group(2))}</strong>")
+        pos = m.end()
+    out.append(esc(text[pos:]))
+    return "".join(out)
+
+
 def page(title, body):
     return (
         "<!doctype html>\n"
@@ -102,11 +120,11 @@ def sections(chunks):
         if m:
             label, text = m.group(1).strip(), m.group(2)
             if label != last:
-                out.append(f"<h2>{esc(label)}</h2>")
+                out.append(f"<h2>{inline(label)}</h2>")
             last = label
         else:
             text, last = content, None
-        out.append(f"<p>{esc(text)}</p>")
+        out.append(f"<p>{inline(text)}</p>")
     return "\n".join(out)
 
 
