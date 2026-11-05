@@ -29,6 +29,8 @@ CSS = (
     "body{font-family:sans-serif;margin:0;line-height:1.5;color:#1a1a1a}"
     "main,form,.answer{max-width:46rem;margin:0 auto;padding:1rem}"
     "p{white-space:pre-wrap}"
+    "table{border-collapse:collapse;margin:1rem 0}"
+    "th,td{border:1px solid #ccc;padding:.3rem .6rem;text-align:left;vertical-align:top}"
     "form{border-top:1px solid #ccc}"
     "input[type=text]{width:70%;padding:.4rem}"
     "button{padding:.4rem .8rem}"
@@ -99,9 +101,38 @@ def inline(text):
 # a dash-prefixed line is a list item: "- text"
 LIST_ITEM = re.compile(r"[ \t]*-[ \t]+(\S.*?)[ \t\r]*")
 
+# a pipe row is "| a | b |"; a header row followed by a separator row "|---|:---:|" starts a table
+TABLE_ROW = re.compile(r"[ \t]*\|.*\|[ \t\r]*")
+TABLE_SEP = re.compile(r"[ \t]*\|[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t\r]*")
+CELL_BREAK = re.compile(r"(?<!\\)\|")
+
+
+def cells(line):
+    """The cell texts of one pipe row, outer pipes dropped; a backslash-escaped pipe is a literal pipe."""
+    row = line.strip()
+    row = row[1:] if row.startswith("|") else row
+    row = row[:-1] if row.endswith("|") and not row.endswith("\\|") else row
+    return [c.replace("\\|", "|").strip() for c in CELL_BREAK.split(row)]
+
+
+def table(header, rows):
+    """A header row and its body rows as a table; every row is padded or cut to the header's width."""
+    head = cells(header)
+    width = len(head)
+
+    def tr(tag, row, attrs=""):
+        row = (row + [""] * width)[:width]
+        return "<tr>" + "".join(f"<{tag}{attrs}>{inline(c)}</{tag}>" for c in row) + "</tr>"
+
+    out = ["<table>", "<thead>", tr("th", head, ' scope="col"'), "</thead>"]
+    if rows:
+        out += ["<tbody>", *(tr("td", cells(r)) for r in rows), "</tbody>"]
+    out.append("</table>")
+    return "\n".join(out)
+
 
 def blocks(text):
-    """A chunk body as HTML: runs of '- ' lines become ul/li, the lines between them stay paragraphs."""
+    """A chunk body as HTML: runs of '- ' lines become ul/li, pipe tables become table, the rest stay paragraphs."""
     out, para, items = [], [], []
 
     def flush_para():
@@ -116,7 +147,19 @@ def blocks(text):
             out.append(f"<ul>\n{lis}\n</ul>")
             items.clear()
 
-    for line in text.split("\n"):
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if TABLE_ROW.fullmatch(line) and i + 1 < len(lines) and TABLE_SEP.fullmatch(lines[i + 1]):
+            flush_para()
+            flush_items()
+            j = i + 2
+            while j < len(lines) and TABLE_ROW.fullmatch(lines[j]):
+                j += 1
+            out.append(table(line, lines[i + 2:j]))
+            i = j
+            continue
         m = LIST_ITEM.fullmatch(line)
         if m:
             flush_para()
@@ -124,6 +167,7 @@ def blocks(text):
         else:
             flush_items()
             para.append(line)
+        i += 1
     flush_para()
     flush_items()
     return "\n".join(out)
