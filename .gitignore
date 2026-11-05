@@ -5,3 +5,4 @@ brain.env
 __pycache__/
 helpcenter/dist/
 .tatemae/
+.t/

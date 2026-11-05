@@ -3,9 +3,22 @@
   "build": "python3 -m review.preview --out {out} --work {work}",
   "site_prefix": "/help/",
   "tasks": [
-    ["desktop", "You are a new Ridgeline customer (Ridgeline is made by Kestrel Ridge). Using this help center, find out how to invite your team to your workspace."],
-    ["desktop", "You bought an annual plan three weeks ago and want your money back. Find out whether you can get a refund, first by browsing, then by asking your question in the ask box on the page."],
-    ["phone", "You are on your phone. Find the instructions for setting up single sign-on, and check the pages are comfortable to read and use at this size."],
-    ["desktop", "Use this help center the way a customer would: browse, follow links, use the ask box with a question of your own, try the keyboard (Tab) to move around. Note anything broken, confusing, inaccessible or poorly presented."]
-  ]
+    [
+      "desktop",
+      "You are a new Ridgeline customer (Ridgeline is made by Kestrel Ridge). Using this help center, find out how to invite your team to your workspace."
+    ],
+    [
+      "desktop",
+      "You bought an annual plan three weeks ago and want your money back. Find out whether you can get a refund, first by browsing, then by asking your question in the ask box on the page."
+    ],
+    [
+      "phone",
+      "You are on your phone. Find the instructions for setting up single sign-on, and check the pages are comfortable to read and use at this size."
+    ],
+    [
+      "desktop",
+      "Use this help center the way a customer would: browse, follow links, use the ask box with a question of your own, try the keyboard (Tab) to move around. Note anything broken, confusing, inaccessible or poorly presented."
+    ]
+  ],
+  "test_recipe": "Each article page is helpcenter output: the article body is everything inside <main> after the <h1>. A test reads it with Python's re module, for example: python3 -c \"import re,sys; body=re.search(r'<main>(.*)</main>', open('.t/site/<page>.html').read(), re.S).group(1); sys.exit(1 if '**' in body else 0)\". The pages come from corpus/ through the help center build, so a fix changes helpcenter/, never corpus/."
 }

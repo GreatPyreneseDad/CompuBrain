@@ -96,5 +96,5 @@ if __name__ == "__main__":
     # the network's reviewers build the site with this, inside the sandbox:  python3 -m review.preview --out <dir> --work <dir>
     import argparse
     ap = argparse.ArgumentParser(); ap.add_argument("--out", required=True); ap.add_argument("--work", required=True); a = ap.parse_args()
-    w = Path(a.work); w.mkdir(parents=True, exist_ok=True)
-    build(Path(a.out), w)
+    w = Path(a.work).resolve(); w.mkdir(parents=True, exist_ok=True)
+    build(Path(a.out).resolve(), w)
