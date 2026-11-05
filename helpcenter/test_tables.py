@@ -61,8 +61,8 @@ class TableTest(unittest.TestCase):
         self.assertEqual(out.count("<table>"), 1)
 
     def test_sections_use_tables(self):
-        out = self.build.sections(["[KB: Values]\n| Setting | Value |\n|---|---|\n| A | B |"])
-        self.assertIn("<h2>KB: Values</h2>", out)
+        out = self.build.sections(["[KB: Title > Values]\n| Setting | Value |\n|---|---|\n| A | B |"])
+        self.assertIn("<h2>Values</h2>", out)
         self.assertIn("<td>A</td>", out)
 
 

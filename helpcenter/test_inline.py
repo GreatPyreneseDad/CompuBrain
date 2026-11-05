@@ -40,7 +40,8 @@ class InlineTest(unittest.TestCase):
 
     def test_sections_render_heading_and_body(self):
         out = self.build.sections(["[KB: Title > **Setup**]\nSet `idp_url` now"])
-        self.assertIn("<h2>KB: Title &gt; <strong>Setup</strong></h2>", out)
+        self.assertIn("<h2><strong>Setup</strong></h2>", out)
+        self.assertNotIn("KB: Title", out)
         self.assertIn("<p>Set <code>idp_url</code> now</p>", out)
 
 
