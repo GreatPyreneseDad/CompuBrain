@@ -19,6 +19,9 @@ ROLE = "BRAIN_CUSTOMER"
 DEFAULT_TOKEN = "helpcenter-public"
 SITE_TITLE = "Help Center"
 
+# ingest/chunk.py prefixes a chunk with its heading trail: "[Support KB: Title > Section]\n<body>"
+LABEL = re.compile(r"\A\[([^\n]+)\]\n(.*)\Z", re.S)
+
 DOCS_SQL = "select id, title from visible_document order by title, id"
 CHUNKS_SQL = "select document_id, ord, content from chunk order by document_id, ord, content"
 
@@ -91,6 +94,22 @@ def page(title, body):
     )
 
 
+def sections(chunks):
+    """Chunks in order as HTML: a chunk's path label becomes an h2 (once for consecutive chunks sharing it)."""
+    out, last = [], None
+    for content in chunks:
+        m = LABEL.match(content)
+        if m:
+            label, text = m.group(1).strip(), m.group(2)
+            if label != last:
+                out.append(f"<h2>{esc(label)}</h2>")
+            last = label
+        else:
+            text, last = content, None
+        out.append(f"<p>{esc(text)}</p>")
+    return "\n".join(out)
+
+
 def slugs(docs):
     """One unique file name per document; docs arrive sorted, so the assignment is stable."""
     used, names = set(), {}
@@ -130,7 +149,7 @@ def build(out, token):
     write("index.html", page(SITE_TITLE, f"<h1>{esc(SITE_TITLE)}</h1>\n{listing}"))
 
     for doc_id, title in docs:
-        paras = "\n".join(f"<p>{esc(c)}</p>" for c in chunks[doc_id])
+        paras = sections(chunks[doc_id])
         body = f'<p><a href="index.html">All articles</a></p>\n<h1>{esc(title)}</h1>\n{paras}'
         write(names[doc_id], page(f"{title} - {SITE_TITLE}", body))
 
