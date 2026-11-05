@@ -128,7 +128,7 @@ def inline(text):
 LIST_ITEM = re.compile(r"[ \t]*-[ \t]+(\S.*?)[ \t\r]*")
 
 # a number-and-period line is a numbered step: "1. text"
-ORDERED_ITEM = re.compile(r"[ \t]*\d+\.[ \t]+(\S.*?)[ \t\r]*")
+ORDERED_ITEM = re.compile(r"[ \t]*(\d+)\.[ \t]+(\S.*?)[ \t\r]*")
 
 # a pipe row is "| a | b |"; a header row followed by a separator row "|---|:---:|" starts a table
 TABLE_ROW = re.compile(r"[ \t]*\|.*\|[ \t\r]*")
@@ -161,9 +161,11 @@ def table(header, rows):
 
 
 def blocks(text):
-    """A chunk body as HTML: runs of '- ' lines become ul/li, runs of '1. ' lines ol/li, pipe tables table, the rest paragraphs."""
+    """A chunk body as HTML: runs of '- ' lines become ul/li, runs of '1. ' lines ol/li (a run that starts at another
+    number, such as steps resumed after a bullet list, carries it as start), pipe tables table, the rest paragraphs."""
     out, para, items = [], [], []
     list_tag = "ul"
+    start = 1
 
     def flush_para():
         body = "\n".join(para).strip()
@@ -174,7 +176,8 @@ def blocks(text):
     def flush_items():
         if items:
             lis = "\n".join(f"<li>{inline(i)}</li>" for i in items)
-            out.append(f"<{list_tag}>\n{lis}\n</{list_tag}>")
+            opening = f'<ol start="{start}">' if list_tag == "ol" and start != 1 else f"<{list_tag}>"
+            out.append(f"{opening}\n{lis}\n</{list_tag}>")
             items.clear()
 
     lines = text.split("\n")
@@ -198,7 +201,9 @@ def blocks(text):
             if kind != list_tag:
                 flush_items()
                 list_tag = kind
-            items.append(m.group(1))
+            if kind == "ol" and not items:
+                start = int(m.group(1))
+            items.append(m.group(m.lastindex))
         else:
             flush_items()
             para.append(line)
