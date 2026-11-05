@@ -96,6 +96,39 @@ def inline(text):
     return "".join(out)
 
 
+# a dash-prefixed line is a list item: "- text"
+LIST_ITEM = re.compile(r"[ \t]*-[ \t]+(\S.*?)[ \t\r]*")
+
+
+def blocks(text):
+    """A chunk body as HTML: runs of '- ' lines become ul/li, the lines between them stay paragraphs."""
+    out, para, items = [], [], []
+
+    def flush_para():
+        body = "\n".join(para).strip()
+        if body:
+            out.append(f"<p>{inline(body)}</p>")
+        para.clear()
+
+    def flush_items():
+        if items:
+            lis = "\n".join(f"<li>{inline(i)}</li>" for i in items)
+            out.append(f"<ul>\n{lis}\n</ul>")
+            items.clear()
+
+    for line in text.split("\n"):
+        m = LIST_ITEM.fullmatch(line)
+        if m:
+            flush_para()
+            items.append(m.group(1))
+        else:
+            flush_items()
+            para.append(line)
+    flush_para()
+    flush_items()
+    return "\n".join(out)
+
+
 def page(title, body):
     return (
         "<!doctype html>\n"
@@ -124,7 +157,9 @@ def sections(chunks):
             last = label
         else:
             text, last = content, None
-        out.append(f"<p>{inline(text)}</p>")
+        body = blocks(text)
+        if body:
+            out.append(body)
     return "\n".join(out)
 
 
