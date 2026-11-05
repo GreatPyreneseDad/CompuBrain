@@ -92,8 +92,9 @@ LINK = re.compile(
 )
 
 
-def linkify(text):
-    """Escape plain text and turn the emails and URLs in it into links; trailing punctuation stays outside."""
+def linkify(text, xref=esc):
+    """Escape plain text and turn the emails and URLs in it into links; trailing punctuation stays outside.
+    xref renders the text between links (default: escape only); the build passes one that links article mentions."""
     out, pos = [], 0
     for m in LINK.finditer(text):
         token = m.group(0)
@@ -103,25 +104,73 @@ def linkify(text):
         if not token or (kind == "bare" and token.endswith("/") and "/" not in token[:-1].split("//")[-1] and False):
             continue
         href = {"url": token, "mail": "mailto:" + token, "bare": "https://" + token}[kind]
-        out.append(esc(text[pos:m.start()]))
+        out.append(xref(text[pos:m.start()]))
         out.append(f'<a href="{esc(href)}">{esc(token)}</a>')
         pos = m.start() + len(token)
-    out.append(esc(text[pos:]))
+    out.append(xref(text[pos:]))
     return "".join(out)
 
 
-def inline(text):
+def inline(text, xref=esc):
     """Escape text and render its inline markdown bold and code as strong and code elements, and link emails and URLs."""
     out, pos = [], 0
     for m in INLINE.finditer(text):
-        out.append(linkify(text[pos:m.start()]))
+        out.append(linkify(text[pos:m.start()], xref))
         if m.group(1) is not None:
             out.append(f"<code>{esc(m.group(1))}</code>")
         else:
-            out.append(f"<strong>{inline(m.group(2))}</strong>")
+            out.append(f"<strong>{inline(m.group(2), xref)}</strong>")
         pos = m.end()
-    out.append(linkify(text[pos:]))
+    out.append(linkify(text[pos:], xref))
     return "".join(out)
+
+
+def xref_linker(docs, names):
+    """A function that, given the id of the page being built, returns a text renderer that escapes text and links
+    '<leading words of an article's title> article' to that article's page. It links only when exactly one article
+    starts with those words, and never to the page itself."""
+    index = {}
+    for doc_id, title in docs:
+        # titles read "Support KB: Refund Policy ...", but readers say "Refund Policy article": a phrase may start
+        # at the title's first word or right after a separator (a word ending in a colon, or a lone dash or pipe)
+        words = str(title).split()
+        starts = [0] + [
+            i + 1 for i, w in enumerate(words)
+            if w.endswith(":") or not any(ch.isalnum() for ch in w)
+        ]
+        for s in starts:
+            rest = [w for w in words[s:]]
+            if not rest or not any(ch.isalnum() for ch in rest[0]):
+                continue
+            for n in range(min(2, len(rest)), len(rest) + 1):
+                index.setdefault(tuple(w.lower() for w in rest[:n]), set()).add(doc_id)
+    if not index:
+        return lambda current: esc
+    phrases = sorted(index, key=lambda k: (-len(k), k))
+    pattern = re.compile(
+        r"(?<![\w-])(?:" + "|".join(r"\s+".join(re.escape(w) for w in k) for k in phrases) + r")\s+article\b",
+        re.I,
+    )
+
+    def for_page(current):
+        def render(text):
+            out, pos = [], 0
+            for m in pattern.finditer(text):
+                ids = index.get(tuple(w.lower() for w in m.group(0).split()[:-1]), ())
+                if len(ids) != 1:
+                    continue
+                (target,) = ids
+                if target == current:
+                    continue
+                out.append(esc(text[pos:m.start()]))
+                out.append(f'<a href="{esc(names[target])}">{esc(m.group(0))}</a>')
+                pos = m.end()
+            out.append(esc(text[pos:]))
+            return "".join(out)
+
+        return render
+
+    return for_page
 
 
 # a dash-prefixed line is a list item: "- text"
@@ -144,14 +193,14 @@ def cells(line):
     return [c.replace("\\|", "|").strip() for c in CELL_BREAK.split(row)]
 
 
-def table(header, rows):
+def table(header, rows, xref=esc):
     """A header row and its body rows as a table; every row is padded or cut to the header's width."""
     head = cells(header)
     width = len(head)
 
     def tr(tag, row, attrs=""):
         row = (row + [""] * width)[:width]
-        return "<tr>" + "".join(f"<{tag}{attrs}>{inline(c)}</{tag}>" for c in row) + "</tr>"
+        return "<tr>" + "".join(f"<{tag}{attrs}>{inline(c, xref)}</{tag}>" for c in row) + "</tr>"
 
     out = ["<table>", "<thead>", tr("th", head, ' scope="col"'), "</thead>"]
     if rows:
@@ -160,7 +209,7 @@ def table(header, rows):
     return "\n".join(out)
 
 
-def blocks(text):
+def blocks(text, xref=esc):
     """A chunk body as HTML: runs of '- ' lines become ul/li, runs of '1. ' lines ol/li (a run that starts at another
     number, such as steps resumed after a bullet list, carries it as start), pipe tables table, the rest paragraphs."""
     out, para, items = [], [], []
@@ -170,12 +219,12 @@ def blocks(text):
     def flush_para():
         body = "\n".join(para).strip()
         if body:
-            out.append(f"<p>{inline(body)}</p>")
+            out.append(f"<p>{inline(body, xref)}</p>")
         para.clear()
 
     def flush_items():
         if items:
-            lis = "\n".join(f"<li>{inline(i)}</li>" for i in items)
+            lis = "\n".join(f"<li>{inline(i, xref)}</li>" for i in items)
             opening = f'<ol start="{start}">' if list_tag == "ol" and start != 1 else f"<{list_tag}>"
             out.append(f"{opening}\n{lis}\n</{list_tag}>")
             items.clear()
@@ -190,7 +239,7 @@ def blocks(text):
             j = i + 2
             while j < len(lines) and TABLE_ROW.fullmatch(lines[j]):
                 j += 1
-            out.append(table(line, lines[i + 2:j]))
+            out.append(table(line, lines[i + 2:j], xref))
             i = j
             continue
         m, kind = LIST_ITEM.fullmatch(line), "ul"
@@ -229,7 +278,7 @@ def page(title, body):
     )
 
 
-def sections(chunks):
+def sections(chunks, xref=esc):
     """Chunks in order as HTML: a chunk's label becomes an h2 of its section name only (once for consecutive chunks
     sharing the label); a title-only label, with no ' > ', is the page's h1 already and gets no heading."""
     out, last = [], None
@@ -242,7 +291,7 @@ def sections(chunks):
             last = label
         else:
             text, last = content, None
-        body = blocks(text)
+        body = blocks(text, xref)
         if body:
             out.append(body)
     return "\n".join(out)
@@ -275,6 +324,7 @@ def fetch():
 def build(out, token):
     docs, chunks = fetch()
     names = slugs(docs)
+    linker = xref_linker(docs, names)
     out.mkdir(parents=True, exist_ok=True)
     for stale in out.glob("doc-*.html"):
         stale.unlink()
@@ -287,7 +337,7 @@ def build(out, token):
     write("index.html", page(SITE_TITLE, f"<h1>{esc(SITE_TITLE)}</h1>\n{listing}"))
 
     for doc_id, title in docs:
-        paras = sections(chunks[doc_id])
+        paras = sections(chunks[doc_id], linker(doc_id))
         body = f'<p><a href="index.html">All articles</a></p>\n<h1>{esc(title)}</h1>\n{paras}'
         write(names[doc_id], page(f"{title} - {SITE_TITLE}", body))
 
