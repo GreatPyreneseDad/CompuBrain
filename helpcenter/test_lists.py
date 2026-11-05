@@ -37,8 +37,8 @@ class ListTest(unittest.TestCase):
         self.assertEqual(self.build.blocks("well-known - ok"), "<p>well-known - ok</p>")
 
     def test_sections_use_lists(self):
-        out = self.build.sections(["[KB: Roles]\n- Admin\n- Member"])
-        self.assertIn("<h2>KB: Roles</h2>", out)
+        out = self.build.sections(["[KB: Title > Roles]\n- Admin\n- Member"])
+        self.assertIn("<h2>Roles</h2>", out)
         self.assertIn("<li>Member</li>", out)
 
 

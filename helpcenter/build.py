@@ -225,14 +225,15 @@ def page(title, body):
 
 
 def sections(chunks):
-    """Chunks in order as HTML: a chunk's path label becomes an h2 (once for consecutive chunks sharing it)."""
+    """Chunks in order as HTML: a chunk's label becomes an h2 of its section name only (once for consecutive chunks
+    sharing the label); a title-only label, with no ' > ', is the page's h1 already and gets no heading."""
     out, last = [], None
     for content in chunks:
         m = LABEL.match(content)
         if m:
             label, text = m.group(1).strip(), m.group(2)
-            if label != last:
-                out.append(f"<h2>{inline(label)}</h2>")
+            if label != last and " > " in label:
+                out.append(f"<h2>{inline(label.split(' > ')[-1].strip())}</h2>")
             last = label
         else:
             text, last = content, None
